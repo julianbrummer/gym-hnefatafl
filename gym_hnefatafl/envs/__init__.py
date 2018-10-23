@@ -1,0 +1,1 @@
+from gym_hnefatafl.envs.hnefatafl_env import HnefataflEnv
