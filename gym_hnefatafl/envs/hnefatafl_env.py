@@ -1,6 +1,10 @@
+import numpy as np
 import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
+
+from gym_hnefatafl.envs.board import HnefataflBoard
+
 
 class HnefataflEnv(gym.Env):
     """The main OpenAI Gym class. It encapsulates an environment with
@@ -29,7 +33,13 @@ class HnefataflEnv(gym.Env):
 
     # Set these in ALL subclasses
     action_space = None
-    observation_space = None
+
+    def __init__(self):
+
+        self.__board = HnefataflBoard()
+        self.observation_space = spaces.MultiDiscrete([11, 11])
+        self.observation_space.from_jsonable(self.__board.board[1:11, 1:11])
+
 
     def step(self, action):
         """Run one timestep of the environment's dynamics. When end of
@@ -44,6 +54,8 @@ class HnefataflEnv(gym.Env):
             done (boolean): whether the episode has ended, in which case further step() calls will return undefined results
             info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
         """
+
+
         raise NotImplementedError
 
     def reset(self):
