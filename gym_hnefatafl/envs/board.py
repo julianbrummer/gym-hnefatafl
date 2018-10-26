@@ -119,26 +119,31 @@ class HnefataflBoard:
         np.place(self.player_board, self.board == TileState.black, Player.black)
         np.place(self.player_board, (self.board == TileState.white) | (self.board == TileState.king), Player.white)
 
+
     #  Checks whether "player" can do action "move".
     #  move = [fromX,fromY,toX,toY]
     def can_do_action(self, move, player):
-        _fromX = move[0]
-        _fromY = move[1]
-        _toX = move[2]
-        _toY = move[3]
+        from_x, from_y, to_x, to_y = move
 
-        if self.player_board[_fromX, _fromY] != player:  # piece does not belong to player
+        if self.player_board[from_x, from_y] != player:  # piece does not belong to player
             return False
-        if _fromX != _toX and _fromY != _toY:  # no diagonal movement
+        if from_x != to_x and from_y != to_y:  # no diagonal movement
             return False
-        if np.any(self.move_board[_fromX+1:_toX+1, _fromY+1:_toY+1] == TileMoveState.blocking):  # path is blocked
+        if np.any(self.move_board[from_x+1:to_x+1, from_y+1:to_y+1] == TileMoveState.blocking):  # path is blocked
             return False
 
         # special rule soldier can not occupy empty throne
-        if self.board[_fromX, _fromY] != TileState.king and self.board[_toX, _toY] == TileState.throne:
+        if self.board[from_x, from_y] != TileState.king and self.board[to_x, to_y] == TileState.throne:
             return False
 
         return True
+
+    def do_action(self, move, player):
+        from_x, from_y, to_x, to_y = move
+        self.board[to_x, to_y] = self.board[from_x, from_y]
+        self.board[from_x, from_y] = TileState.empty
+        self.update_board_states()
+        
 
     def __str__(self):
         return "Gameboard: \n" + str(self.board) + \
