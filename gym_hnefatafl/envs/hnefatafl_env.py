@@ -2,8 +2,9 @@ import numpy as np
 import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
-
+from gym_hnefatafl.envs.render_utils import Render_utils
 from gym_hnefatafl.envs.board import HnefataflBoard
+import gym_hnefatafl.envs.render_utils
 from gym_hnefatafl.envs.board import Player
 
 
@@ -36,7 +37,7 @@ class HnefataflEnv(gym.Env):
     observation_space = None
 
     def __init__(self):
-
+        self.viewer = None
         self._hnefatafl = HnefataflBoard()
         self.action_space = spaces.MultiDiscrete([11, 11, 11, 11])
 
@@ -71,7 +72,7 @@ class HnefataflEnv(gym.Env):
         raise NotImplementedError
 
     def render(self, mode='human'):
-        assert mode in RENDERING_MODES
+        #assert mode in RENDERING_MODES
 
         img = self.get_image(mode)
 
@@ -80,6 +81,7 @@ class HnefataflEnv(gym.Env):
 
         elif 'human' in mode:
             from gym.envs.classic_control import rendering
+            print (img)
             if self.viewer is None:
                 self.viewer = rendering.SimpleImageViewer()
             self.viewer.imshow(img)
@@ -89,10 +91,10 @@ class HnefataflEnv(gym.Env):
             super(HnefataflEnv, self).render(mode=mode)  # just raise an exception
 
     def get_image(self, mode):
-
-        img = room_to_rgb(self.room_state, self.room_fixed)
-        if mode.startswith('tiny_'):
-            img = room_to_tiny_world_rgb(self.room_state, self.room_fixed, scale=4)
+        print(self._hnefatafl.board)
+        img = Render_utils.room_to_rgb(self._hnefatafl.board)
+        #if mode.startswith('tiny_'):
+           # img = Render_utils.room_to_tiny_world_rgb(self.room_state, self.room_fixed, scale=4)
 
         return img
         """Renders the environment.
