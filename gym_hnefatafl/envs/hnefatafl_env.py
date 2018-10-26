@@ -4,6 +4,7 @@ from gym import error, spaces, utils
 from gym.utils import seeding
 
 from gym_hnefatafl.envs.board import HnefataflBoard
+from gym_hnefatafl.envs.board import Player
 
 
 class HnefataflEnv(gym.Env):
@@ -32,14 +33,12 @@ class HnefataflEnv(gym.Env):
     spec = None
 
     # Set these in ALL subclasses
-    action_space = None
+    observation_space = None
 
     def __init__(self):
 
-        self.__board = HnefataflBoard()
-        self.observation_space = spaces.MultiDiscrete([11, 11])
-        self.observation_space.from_jsonable(self.__board.board[1:11, 1:11])
-
+        self._hnefatafl = HnefataflBoard()
+        self.action_space = spaces.MultiDiscrete([11, 11, 11, 11])
 
     def step(self, action):
         """Run one timestep of the environment's dynamics. When end of
@@ -55,8 +54,10 @@ class HnefataflEnv(gym.Env):
             info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
         """
 
+        # just for testing
+        self._hnefatafl.can_do_action(self.action_space.sample(), Player.white)
 
-        raise NotImplementedError
+
 
     def reset(self):
         """Resets the state of the environment and returns an initial observation.
