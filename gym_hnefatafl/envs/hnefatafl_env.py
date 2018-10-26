@@ -66,6 +66,30 @@ class HnefataflEnv(gym.Env):
         raise NotImplementedError
 
     def render(self, mode='human'):
+        assert mode in RENDERING_MODES
+
+        img = self.get_image(mode)
+
+        if 'rgb_array' in mode:
+            return img
+
+        elif 'human' in mode:
+            from gym.envs.classic_control import rendering
+            if self.viewer is None:
+                self.viewer = rendering.SimpleImageViewer()
+            self.viewer.imshow(img)
+            return self.viewer.isopen
+
+        else:
+            super(HnefataflEnv, self).render(mode=mode)  # just raise an exception
+
+    def get_image(self, mode):
+
+        img = room_to_rgb(self.room_state, self.room_fixed)
+        if mode.startswith('tiny_'):
+            img = room_to_tiny_world_rgb(self.room_state, self.room_fixed, scale=4)
+
+        return img
         """Renders the environment.
         The set of supported modes varies per environment. (And some
         environments do not support rendering at all.) By convention,
