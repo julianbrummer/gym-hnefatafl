@@ -54,6 +54,8 @@ class HnefataflEnv(gym.Env):
             info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
         """
 
+
+
         # just for testing
         self._hnefatafl.can_do_action(self.action_space.sample(), Player.white)
 
@@ -64,6 +66,8 @@ class HnefataflEnv(gym.Env):
         Returns: observation (object): the initial observation of the
             space.
         """
+        self._hnefatafl = HnefataflBoard()
+
         raise NotImplementedError
 
     def render(self, mode='human'):
