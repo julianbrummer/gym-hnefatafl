@@ -2,6 +2,11 @@ import numpy as np
 from enum import IntEnum
 
 
+class Player(IntEnum):
+    white = 1
+    black = 2
+
+
 class TileState(IntEnum):
     empty = 0   # neutral
     white = 1   # hostile to black
@@ -30,11 +35,24 @@ class HnefataflBoard:
 
     def __init__(self):
         # empty
-        self.board = np.zeros((13, 13))
-        self.white_board = np.zeros((13, 13))
-        self.black_board = np.zeros((13, 13))
-        self.king_board = np.zeros((13, 13))
-        self.move_board = np.zeros((13, 13))
+        self.board = np.zeros((13, 13))        # TileStates
+        self.white_board = np.zeros((13, 13))  # TileBattleStates
+        self.black_board = np.zeros((13, 13))  # TileBattleStates
+        self.king_board = np.zeros((13, 13))   # TileBattleStates
+        self.move_board = np.zeros((13, 13))   # TileMoveStates
+        self.player_board = np.zeros((13, 13)) # Player
+
+        self.reset_board()
+
+    def reset_board(self):
+        # empty
+        self.board = np.zeros((13, 13))        # TileStates
+        self.white_board = np.zeros((13, 13))  # TileBattleStates
+        self.black_board = np.zeros((13, 13))  # TileBattleStates
+        self.king_board = np.zeros((13, 13))   # TileBattleStates
+        self.move_board = np.zeros((13, 13))   # TileMoveStates
+        self.player_board = np.zeros((13, 13)) # Player
+
         # black (four battalions)
         self.board[1, 4:9] = TileState.black
         self.board[2, 6] = TileState.black
@@ -63,13 +81,13 @@ class HnefataflBoard:
         self.board[11, 11] = TileState.corner
         self.board[11, 1] = TileState.corner
 
-        self.update_board()
+        self.update_board_states()
 
-    def update_board(self):
+    def update_board_states(self):
 
         # battle state for white soldiers (corners, empty throne and black soldiers are hostile)
         # white soldiers are allied and the king is neutral, since he is unarmed
-        self.black_board = np.zeros((13, 13))
+        self.white_board = np.zeros((13, 13))
         hostile_mask = (self.board == TileState.black) | (self.board == TileState.corner) | (self.board == TileState.throne)
         np.place(self.white_board, self.board == TileState.white, TileBattleState.allied)
         np.place(self.white_board, hostile_mask, TileBattleState.hostile)
@@ -92,13 +110,41 @@ class HnefataflBoard:
         # anything else is traversable
         self.move_board = np.zeros((13, 13))
         blocking_mask = (self.board == TileState.border) | (self.board == TileState.corner) \
-                       | (self.board == TileState.white) | (self.board == TileState.black)
+                       | (self.board == TileState.white) | (self.board == TileState.black) \
+                       | (self.board == TileState.king)
         np.place(self.move_board, blocking_mask, TileMoveState.blocking)
+
+        # player state
+        self.player_board = np.zeros((13, 13))
+        np.place(self.player_board, self.board == TileState.black, Player.black)
+        np.place(self.player_board, (self.board == TileState.white) | (self.board == TileState.king), Player.white)
+
+    #  Checks whether "player" can do action "move".
+    #  move = [fromX,fromY,toX,toY]
+    def can_do_action(self, move, player):
+        _fromX = move[0]
+        _fromY = move[1]
+        _toX = move[2]
+        _toY = move[3]
+
+        if self.player_board[_fromX, _fromY] != player:  # piece does not belong to player
+            return False
+        if _fromX != _toX and _fromY != _toY:  # no diagonal movement
+            return False
+        if np.any(self.move_board[_fromX+1:_toX+1, _fromY+1:_toY+1] == TileMoveState.blocking):  # path is blocked
+            return False
+
+        # special rule soldier can not occupy empty throne
+        if self.board[_fromX, _fromY] != TileState.king and self.board[_toX, _toY] == TileState.throne:
+            return False
+
+        return True
 
     def __str__(self):
         return "Gameboard: \n" + str(self.board) + \
                "\nWhiteboard: \n" + str(self.white_board) + \
                "\nBlackboard: \n" + str(self.black_board) + \
                "\nKingboard: \n" + str(self.king_board) + \
-               "\nMoveboard: \n" + str(self.move_board)
+               "\nMoveboard: \n" + str(self.move_board) + \
+               "\nPlayerboard: \n" + str(self.player_board)
 
