@@ -16,21 +16,22 @@ def __playgame__():
     agent2 = RandomAgent(Player.white)
     agent1turn = True
 
-    # while True:
-    for i in range(10):
+    # for i in range(1000):
+    while True:
         # ask the agents for a move
         action = turn_agent().make_move(env)
         observation, reward, done, info = env.step(action)
 
         env.render()
-        print(env)
-        print()  # blank line
-        time.sleep(2)
-
-        if done:
-            return done
+        # print(env)
+        # print()  # blank line
+        time.sleep(.2)
 
         turn_agent().give_reward(reward)
+
+        if done:
+            return info
+
         agent1turn = not agent1turn
 
 

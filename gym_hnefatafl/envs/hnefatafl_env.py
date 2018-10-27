@@ -1,12 +1,14 @@
+from enum import IntEnum
+
 import numpy as np
 import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
 from gym_hnefatafl.envs.render_utils import Render_utils
-from gym_hnefatafl.envs.board import HnefataflBoard
+from gym_hnefatafl.envs.board import Outcome
 import gym_hnefatafl.envs.render_utils
 
-from gym_hnefatafl.envs.board import HnefataflBoard, TileBattleState
+from gym_hnefatafl.envs.board import HnefataflBoard
 from gym_hnefatafl.envs.board import Player
 
 
@@ -62,11 +64,9 @@ class HnefataflEnv(gym.Env):
         self._hnefatafl.do_action(action, self.turn_player())
         self._blackTurn = not self._blackTurn
         self.recalculate_action_space()
-        gameover = True if len(self.action_space) == 0 else False
-        if gameover:
-            # TODO determine outcome
-            pass
-        return self, 0, gameover, None
+
+        game_over = self._hnefatafl.outcome != Outcome.ongoing
+        return self, 0, game_over, self._hnefatafl.outcome
 
     # recalculates the action space for the agent whose turn it is next
     def recalculate_action_space(self):
@@ -97,7 +97,7 @@ class HnefataflEnv(gym.Env):
 
         elif 'human' in mode:
             from gym.envs.classic_control import rendering
-            print(img)
+            # print(img)
             if self.viewer is None:
                 self.viewer = rendering.SimpleImageViewer()
             self.viewer.imshow(img)
@@ -107,10 +107,10 @@ class HnefataflEnv(gym.Env):
             super(HnefataflEnv, self).render(mode=mode)  # just raise an exception
 
     def get_image(self, mode):
-        print(self._hnefatafl.board)
+        # print(self._hnefatafl.board)
         img = Render_utils.room_to_rgb(self._hnefatafl.board)
-        #if mode.startswith('tiny_'):
-           # img = Render_utils.room_to_tiny_world_rgb(self.room_state, self.room_fixed, scale=4)
+        # if mode.startswith('tiny_'):
+            # img = Render_utils.room_to_tiny_world_rgb(self.room_state, self.room_fixed, scale=4)
 
         return img
         """Renders the environment.
