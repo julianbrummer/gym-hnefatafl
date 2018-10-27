@@ -106,7 +106,7 @@ class HnefataflBoard:
                        | (self.board == TileState.throne) | (self.board == TileState.black)
         np.place(self.king_board, hostile_mask, TileBattleState.hostile)
 
-        # moveable state for any player (borders, corners, and soldiers are blocking)
+        # movable state for any player (borders, corners, and soldiers are blocking)
         # anything else is traversable
         self.move_board = np.zeros((13, 13))
         blocking_mask = (self.board == TileState.border) | (self.board == TileState.corner) \
@@ -119,11 +119,10 @@ class HnefataflBoard:
         np.place(self.player_board, self.board == TileState.black, Player.black)
         np.place(self.player_board, (self.board == TileState.white) | (self.board == TileState.king), Player.white)
 
-
     #  Checks whether "player" can do action "move".
-    #  move = [fromX,fromY,toX,toY]
+    #  move = ((fromX,fromY),(toX,toY))
     def can_do_action(self, move, player):
-        from_x, from_y, to_x, to_y = move
+        (from_x, from_y), (to_x, to_y) = move
 
         if self.player_board[from_x, from_y] != player:  # piece does not belong to player
             return False
@@ -139,11 +138,14 @@ class HnefataflBoard:
         return True
 
     def do_action(self, move, player):
-        from_x, from_y, to_x, to_y = move
-        self.board[to_x, to_y] = self.board[from_x, from_y]
-        self.board[from_x, from_y] = TileState.empty
-        self.update_board_states()
-        
+        (from_x, from_y), (to_x, to_y) = move
+        if self.can_do_action(move, player):
+            print(str(player) + " moves a piece from " + str((from_x, from_y)) + " to " + str((to_x, to_y)))
+            self.board[to_x, to_y] = self.board[from_x, from_y]
+            self.board[from_x, from_y] = TileState.empty
+            self.update_board_states()
+        else:
+            raise Exception(str(player) + " tried to make move " + str(move) + ", but that move is not possible.")
 
     def __str__(self):
         return "Gameboard: \n" + str(self.board) + \

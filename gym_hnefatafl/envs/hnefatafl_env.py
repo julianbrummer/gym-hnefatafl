@@ -5,6 +5,8 @@ from gym.utils import seeding
 from gym_hnefatafl.envs.render_utils import Render_utils
 from gym_hnefatafl.envs.board import HnefataflBoard
 import gym_hnefatafl.envs.render_utils
+
+from gym_hnefatafl.envs.board import HnefataflBoard, TileBattleState
 from gym_hnefatafl.envs.board import Player
 
 
@@ -36,10 +38,44 @@ class HnefataflEnv(gym.Env):
     # Set these in ALL subclasses
     observation_space = None
 
+    # recalculates the action space for the agent whose turn it is next
+    def recalculate_action_space(self):
+        def turn_player_board():
+            return self._hnefatafl.black_board if self._blackTurn else self._hnefatafl.white_board
+
+        self.action_space = []
+        for (x, y), tileBattleState in np.ndenumerate(turn_player_board()):
+            if tileBattleState == TileBattleState.allied:
+                # first direction
+                for x_other in reversed(range(1, x)):
+                    if self._hnefatafl.move_board[x_other, y] == 0:
+                        self.action_space.append(((x, y), (x_other, y)))
+                    else:
+                        break
+                # second direction
+                for x_other in range(x + 1, 13):
+                    if self._hnefatafl.move_board[x_other, y] == 0:
+                        self.action_space.append(((x, y), (x_other, y)))
+                    else:
+                        break
+                # third direction
+                for y_other in reversed(range(1, y)):
+                    if self._hnefatafl.move_board[x, y_other] == 0:
+                        self.action_space.append(((x, y), (x, y_other)))
+                    else:
+                        break
+                # forth direction
+                for y_other in range(y + 1, 13):
+                    if self._hnefatafl.move_board[x, y_other] == 0:
+                        self.action_space.append(((x, y), (x, y_other)))
+                    else:
+                        break
+
     def __init__(self):
         self.viewer = None
         self._hnefatafl = HnefataflBoard()
-        self.action_space = spaces.MultiDiscrete([11, 11, 11, 11])
+        self._blackTurn = True
+        self.recalculate_action_space()
 
     def step(self, action):
         """Run one timestep of the environment's dynamics. When end of
@@ -55,12 +91,10 @@ class HnefataflEnv(gym.Env):
             info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
         """
 
-
-
-        # just for testing
-        self._hnefatafl.can_do_action(self.action_space.sample(), Player.white)
-
-
+        self._hnefatafl.do_action(action, Player.black if self._blackTurn else Player.white)
+        self._blackTurn = not self._blackTurn
+        self.recalculate_action_space()
+        return self, 0, False, None
 
     def reset(self):
         """Resets the state of the environment and returns an initial observation.
@@ -81,7 +115,7 @@ class HnefataflEnv(gym.Env):
 
         elif 'human' in mode:
             from gym.envs.classic_control import rendering
-            print (img)
+            print(img)
             if self.viewer is None:
                 self.viewer = rendering.SimpleImageViewer()
             self.viewer.imshow(img)
@@ -135,3 +169,7 @@ class HnefataflEnv(gym.Env):
         garbage collected or when the program exits.
         """
         return
+
+    # prints the tile state board
+    def __str__(self):
+        return str(self._hnefatafl.board)
