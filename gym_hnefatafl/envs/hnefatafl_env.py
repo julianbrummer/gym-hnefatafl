@@ -38,43 +38,11 @@ class HnefataflEnv(gym.Env):
     # Set these in ALL subclasses
     observation_space = None
 
-    # recalculates the action space for the agent whose turn it is next
-    def recalculate_action_space(self):
-        def turn_player_board():
-            return self._hnefatafl.black_board if self._blackTurn else self._hnefatafl.white_board
-
-        self.action_space = []
-        for (x, y), tileBattleState in np.ndenumerate(turn_player_board()):
-            if tileBattleState == TileBattleState.allied:
-                # first direction
-                for x_other in reversed(range(1, x)):
-                    if self._hnefatafl.move_board[x_other, y] == 0:
-                        self.action_space.append(((x, y), (x_other, y)))
-                    else:
-                        break
-                # second direction
-                for x_other in range(x + 1, 13):
-                    if self._hnefatafl.move_board[x_other, y] == 0:
-                        self.action_space.append(((x, y), (x_other, y)))
-                    else:
-                        break
-                # third direction
-                for y_other in reversed(range(1, y)):
-                    if self._hnefatafl.move_board[x, y_other] == 0:
-                        self.action_space.append(((x, y), (x, y_other)))
-                    else:
-                        break
-                # forth direction
-                for y_other in range(y + 1, 13):
-                    if self._hnefatafl.move_board[x, y_other] == 0:
-                        self.action_space.append(((x, y), (x, y_other)))
-                    else:
-                        break
-
     def __init__(self):
         self.viewer = None
         self._hnefatafl = HnefataflBoard()
         self._blackTurn = True
+        self.action_space = []
         self.recalculate_action_space()
 
     def step(self, action):
@@ -91,10 +59,22 @@ class HnefataflEnv(gym.Env):
             info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
         """
 
-        self._hnefatafl.do_action(action, Player.black if self._blackTurn else Player.white)
+        self._hnefatafl.do_action(action, self.turn_player())
         self._blackTurn = not self._blackTurn
         self.recalculate_action_space()
-        return self, 0, False, None
+        gameover = True if len(self.action_space) == 0 else False
+        if gameover:
+            # TODO determine outcome
+            pass
+        return self, 0, gameover, None
+
+    # recalculates the action space for the agent whose turn it is next
+    def recalculate_action_space(self):
+        self.action_space = self._hnefatafl.get_valid_actions(self.turn_player())
+
+    # returns either Player.black or Player.white depending on whose turn it is
+    def turn_player(self):
+        return Player.black if self._blackTurn else Player.white
 
     def reset(self):
         """Resets the state of the environment and returns an initial observation.
@@ -102,6 +82,8 @@ class HnefataflEnv(gym.Env):
             space.
         """
         self._hnefatafl = HnefataflBoard()
+        self._blackTurn = True
+        self.recalculate_action_space()
 
         raise NotImplementedError
 

@@ -122,30 +122,92 @@ class HnefataflBoard:
     #  Checks whether "player" can do action "move".
     #  move = ((fromX,fromY),(toX,toY))
     def can_do_action(self, move, player):
-        (from_x, from_y), (to_x, to_y) = move
+        (position_from, position_to) = move
+        return self.get_player_board(player)[position_from] == TileBattleState.allied \
+               and move in self.get_valid_actions_for_piece(position_from)
 
-        if self.player_board[from_x, from_y] != player:  # piece does not belong to player
-            return False
-        if from_x != to_x and from_y != to_y:  # no diagonal movement
-            return False
-        if np.any(self.move_board[from_x+1:to_x+1, from_y+1:to_y+1] == TileMoveState.blocking):  # path is blocked
-            return False
+    # returns all valid actions for a player as a list of actions
+    def get_valid_actions(self, player):
+        valid_actions = []
+        for position, tileBattleState in np.ndenumerate(self.get_player_board(player)):
+            if tileBattleState == TileBattleState.allied:
+                valid_actions.extend(self.get_valid_actions_for_piece(position))
+        return valid_actions
 
-        # special rule soldier can not occupy empty throne
-        if self.board[from_x, from_y] != TileState.king and self.board[to_x, to_y] == TileState.throne:
-            return False
+    # returns all valid actions for a piece at a given position as a list of actions
+    def get_valid_actions_for_piece(self, position):
+        x, y = position
+        is_king = self.board[x, y] == TileState.king
+        valid_actions = []
+        # first direction
+        for x_other in reversed(range(0, x)):
+            if self.move_board[x_other, y] == 0 or is_king and self.board[x_other, y] == TileState.corner:
+                valid_actions.append(((x, y), (x_other, y)))
+            else:
+                break
+        # second direction
+        for x_other in range(x + 1, 13):
+            if self.move_board[x_other, y] == 0 or is_king and self.board[x_other, y] == TileState.corner:
+                valid_actions.append(((x, y), (x_other, y)))
+            else:
+                break
+        # third direction
+        for y_other in reversed(range(0, y)):
+            if self.move_board[x, y_other] == 0 or is_king and self.board[x, y_other] == TileState.corner:
+                valid_actions.append(((x, y), (x, y_other)))
+            else:
+                break
+        # forth direction
+        for y_other in range(y + 1, 13):
+            if self.move_board[x, y_other] == 0 or is_king and self.board[x, y_other] == TileState.corner:
+                valid_actions.append(((x, y), (x, y_other)))
+            else:
+                break
+        return valid_actions
 
-        return True
-
+    # executes "move" for the player "player" whose turn it is
     def do_action(self, move, player):
+        print(str(move))
         (from_x, from_y), (to_x, to_y) = move
         if self.can_do_action(move, player):
             print(str(player) + " moves a piece from " + str((from_x, from_y)) + " to " + str((to_x, to_y)))
             self.board[to_x, to_y] = self.board[from_x, from_y]
-            self.board[from_x, from_y] = TileState.empty
+            self.board[from_x, from_y] = TileState.empty if (from_x, from_y) != (6, 6) else TileState.throne
+            self.capture((to_x, to_y), player)
+            # TODO check for game over
+            # TODO check whether board state has occured three times
             self.update_board_states()
         else:
             raise Exception(str(player) + " tried to make move " + str(move) + ", but that move is not possible.")
+
+    # captures all enemy pieces around the position that the player "player" has just moved a piece to
+    def capture(self, position_to, turn_player):
+        x, y = position_to
+        other_player_board = self.get_other_player_board(turn_player)
+        # capture right
+        if other_player_board[x + 1, y] == TileBattleState.allied and other_player_board[x + 2, y] == TileBattleState.hostile:
+            self.board[x + 1, y] = TileState.empty
+            print(str(turn_player) + " captures piece at " + str((x + 1, y)))
+        # capture left
+        if other_player_board[x - 1, y] == TileBattleState.allied and other_player_board[x - 2, y] == TileBattleState.hostile:
+            self.board[x - 1, y] = TileState.empty
+            print(str(turn_player) + " captures piece at " + str((x - 1, y)))
+        # capture bottom
+        if other_player_board[x, y + 1] == TileBattleState.allied and other_player_board[x, y + 2] == TileBattleState.hostile:
+            self.board[x, y + 1] = TileState.empty
+            print(str(turn_player) + " captures piece at " + str((x, y + 1)))
+        # capture top
+        if other_player_board[x, y - 1] == TileBattleState.allied and other_player_board[x, y - 2] == TileBattleState.hostile:
+            self.board[x, y - 1] = TileState.empty
+            print(str(turn_player) + " captures piece at " + str((x, y - 1)))
+
+    # returns either self.black_board or self.white_board depending on whether player is Player.black or player.white
+    def get_player_board(self, player):
+        return self.black_board if player == Player.black else self.white_board
+
+    # returns the opposite of self.get_player_board, i. e. the player's board who is not "player"
+    def get_other_player_board(self, player):
+        return self.black_board if player == Player.white else self.white_board
 
     def __str__(self):
         return "Gameboard: \n" + str(self.board) + \

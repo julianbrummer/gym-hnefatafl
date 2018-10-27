@@ -1,3 +1,5 @@
+import time
+
 from gym_hnefatafl.agents.random_agent import RandomAgent
 from gym_hnefatafl.envs.hnefatafl_env import HnefataflEnv
 from gym_hnefatafl.envs.board import Player
@@ -15,14 +17,15 @@ def __playgame__():
     agent1turn = True
 
     # while True:
-    for i in range(3):
+    for i in range(10):
         # ask the agents for a move
         action = turn_agent().make_move(env)
         observation, reward, done, info = env.step(action)
 
         env.render()
         print(env)
-        print()    # blank line
+        print()  # blank line
+        time.sleep(2)
 
         if done:
             return done

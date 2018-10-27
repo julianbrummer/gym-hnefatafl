@@ -50,8 +50,8 @@ class Render_utils:
             for j in range(13):
                 y_j = j * 32
                 surfaces_id = int(board[i, j])
-                print(type(board[i, j]))
-                print(surfaces_id)
+                # print(type(board[i, j]))
+                # print(surfaces_id)
                 room_rgb[x_i:(x_i + 32), y_j:(y_j + 32), :] = surfaces[surfaces_id]
 
         return room_rgb
