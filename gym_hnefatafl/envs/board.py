@@ -262,10 +262,10 @@ class HnefataflBoard:
 
         # check capture king
         king_x, king_y = self.king_position
-        if self.board[king_x + 1, king_y] == TileState.black \
-                and self.board[king_x - 1, king_y] == TileState.black \
-                and self.board[king_x, king_y + 1] == TileState.black \
-                and self.board[king_x, king_y - 1] == TileState.black:
+        if self.king_board[king_x + 1, king_y] == TileBattleState.hostile \
+                and self.king_board[king_x - 1, king_y] == TileBattleState.hostile \
+                and self.king_board[king_x, king_y + 1] == TileBattleState.hostile \
+                and self.king_board[king_x, king_y - 1] == TileBattleState.hostile:
             self.outcome = Outcome.black
             has_captured = True
             print("Black wins by capturing the king at " + str(self.king_position)) + "!"
