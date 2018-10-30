@@ -5,16 +5,15 @@ from gym_hnefatafl.envs.hnefatafl_env import HnefataflEnv
 from gym_hnefatafl.envs.board import Player
 
 
-def __playgame__():
+# plays a game with the two given agents and returns the outcome
+def __play_game__(black_agent, white_agent):
 
     # returns the agent whose turn it is
     def turn_agent():
-        return agent1 if agent1turn else agent2
+        return black_agent if black_turn else white_agent
 
     env = HnefataflEnv()
-    agent1 = RandomAgent(Player.black)
-    agent2 = RandomAgent(Player.white)
-    agent1turn = True
+    black_turn = True
 
     # for i in range(1000):
     while True:
@@ -22,23 +21,21 @@ def __playgame__():
         action = turn_agent().make_move(env)
         observation, reward, done, info = env.step(action)
 
+        # render the scene
         env.render()
-        # print(env)
-        # print()  # blank line
-        time.sleep(.2)
+        time.sleep(.1)
 
+        # give reward
         turn_agent().give_reward(reward)
 
+        # return if finished
         if done:
             return info
 
-        agent1turn = not agent1turn
+        # switch turn player
+        black_turn = not black_turn
 
 
 if __name__ == "__main__":
-    print(__playgame__())
-    # just for testing
-    # board = HnefataflBoard()
-    # print(board)
-    # env = HnefataflEnv()
-    # env.step(0)
+    print(__play_game__(RandomAgent(Player.black), RandomAgent(Player.white)))
+

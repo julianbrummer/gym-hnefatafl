@@ -1,13 +1,6 @@
-from enum import IntEnum
-
-import numpy as np
 import gym
-from gym import error, spaces, utils
-from gym.utils import seeding
 from gym_hnefatafl.envs.render_utils import Render_utils
 from gym_hnefatafl.envs.board import Outcome
-import gym_hnefatafl.envs.render_utils
-
 from gym_hnefatafl.envs.board import HnefataflBoard
 from gym_hnefatafl.envs.board import Player
 

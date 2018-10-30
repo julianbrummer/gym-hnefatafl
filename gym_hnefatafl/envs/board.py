@@ -1,6 +1,8 @@
 import numpy as np
 from enum import IntEnum
 
+from gym_hnefatafl.envs.rule_config import MAX_NUMBER_OF_TURNS, MAX_NUMBER_OF_TURNS_WITHOUT_CAPTURE
+
 
 class Player(IntEnum):
     white = 1
@@ -45,9 +47,8 @@ class HnefataflBoard:
         self.board = np.zeros((13, 13))         # TileStates
         self.white_board = np.zeros((13, 13))   # TileBattleStates
         self.black_board = np.zeros((13, 13))   # TileBattleStates
-        self.king_board = np.zeros((13, 13))    # TileBattleStates
         self.move_board = np.zeros((13, 13))    # TileMoveStates
-        self.player_board = np.zeros((13, 13))  # Player
+        self.player_board = np.zeros((13, 13))  # Players
 
         self.king_position = (6, 6)
 
@@ -62,6 +63,10 @@ class HnefataflBoard:
         # the outcome of the current match
         self.outcome = Outcome.ongoing
 
+        # turn counts for draw condition
+        self.turn_count = 0
+        self.turns_without_capture_count = 0
+
         self.reset_board()
 
     def reset_board(self):
@@ -69,7 +74,6 @@ class HnefataflBoard:
         self.board = np.zeros((13, 13))        # TileStates
         self.white_board = np.zeros((13, 13))  # TileBattleStates
         self.black_board = np.zeros((13, 13))  # TileBattleStates
-        self.king_board = np.zeros((13, 13))   # TileBattleStates
         self.move_board = np.zeros((13, 13))   # TileMoveStates
         self.player_board = np.zeros((13, 13)) # Player
 
@@ -105,29 +109,26 @@ class HnefataflBoard:
         self.update_board_states()
         self.board_states_dict = {self.board.tobytes(): 1}
         self.outcome = Outcome.ongoing
+        self.turn_count = 0
+        self.turns_without_capture_count = 0
 
     def update_board_states(self):
 
         # battle state for white soldiers (corners, empty throne and black soldiers are hostile)
         # white soldiers are allied and the king is neutral, since he is unarmed
         self.white_board = np.zeros((13, 13))
-        hostile_mask = (self.board == TileState.black) | (self.board == TileState.corner) | (self.board == TileState.throne)
+        hostile_mask = (self.board == TileState.black) | (self.board == TileState.corner) \
+                       | (self.board == TileState.throne)
         np.place(self.white_board, self.board == TileState.white, TileBattleState.allied)
         np.place(self.white_board, hostile_mask, TileBattleState.hostile)
 
         # battle state for black soldiers (corners, empty throne and white soldiers are hostile)
-        # black soldiers are allied and the king is neutral, since he is unarmed
+        # black soldiers are allied
         self.black_board = np.zeros((13, 13))
-        hostile_mask = (self.board == TileState.white) | (self.board == TileState.corner) | (self.board == TileState.throne)
+        hostile_mask = (self.board == TileState.white) | (self.board == TileState.corner) \
+                       | (self.board == TileState.throne) | (self.board == TileState.king)
         np.place(self.black_board, self.board == TileState.black, TileBattleState.allied)
         np.place(self.black_board, hostile_mask, TileBattleState.hostile)
-
-        # battle state for king (borders, corners, empty throne and black soldiers are hostile)
-        # anything else is neutral
-        self.king_board = np.zeros((13, 13))
-        hostile_mask = (self.board == TileState.border) | (self.board == TileState.corner) \
-                       | (self.board == TileState.throne) | (self.board == TileState.black)
-        np.place(self.king_board, hostile_mask, TileBattleState.hostile)
 
         # movable state for any player (borders, corners, and soldiers are blocking)
         # anything else is traversable
@@ -156,8 +157,9 @@ class HnefataflBoard:
             if player == turn_player:
                 valid_actions.extend(self.get_valid_actions_for_piece(position))
         if len(valid_actions) == 0:
-            self.outcome = Outcome.draw
-            print("It is " + str(turn_player) + "'s turn, but they can't make any moves. The game ends in a draw!")
+            self.outcome = Outcome.white if turn_player == Player.black else Outcome.black
+            print("It is " + str(turn_player) + "'s turn, but they can't make any moves. "
+                  + str(Player.white if turn_player == Player.black else Player.black) + " wins!")
         return valid_actions
 
     # returns all valid actions for a piece at a given position as a list of actions
@@ -199,6 +201,9 @@ class HnefataflBoard:
     def do_action(self, move, player):
         (from_x, from_y), (to_x, to_y) = move
         if self.can_do_action(move, player):
+            # increase turn counts
+            self.turn_count += 1
+            self.turns_without_capture_count += 1
             print(str(player) + " moves a piece from " + str((from_x, from_y)) + " to " + str((to_x, to_y)))
 
             # if king is moving: update king position and check if he reached a corner
@@ -206,7 +211,7 @@ class HnefataflBoard:
                 self.king_position = (to_x, to_y)
                 if self.board[self.king_position] == TileState.corner:
                     self.outcome = Outcome.white
-                    print("The king escapes at corner " + str((to_x, to_y)) + ". White wins!")
+                    print("The king escapes to corner " + str((to_x, to_y)) + ". White wins!")
 
             # update the board itself and capture pieces if applicable
             self.board[to_x, to_y] = self.board[from_x, from_y]
@@ -221,14 +226,21 @@ class HnefataflBoard:
                     print("The same board state has occurred three times. The game ends in a draw!")
             else:
                 self.board_states_dict[self.board.tobytes()] = 1
+
+            # check if draw conditions by turn count are met
+            if self.turn_count == MAX_NUMBER_OF_TURNS and self.outcome == Outcome.ongoing:
+                self.outcome = Outcome.draw
+            if self.turns_without_capture_count == MAX_NUMBER_OF_TURNS_WITHOUT_CAPTURE \
+                    and self.outcome == Outcome.ongoing:
+                self.outcome = Outcome.draw
+
             self.update_board_states()
         else:
             raise Exception(str(player) + " tried to make move " + str(move) + ", but that move is not possible.")
 
-    # captures all enemy pieces around the position that the player "player" has just moved a piece to
+    # captures all enemy pieces around the position "position_to" that the player "player" has just moved a piece to
     def capture(self, position_to, turn_player):
         x, y = position_to
-
         other_player_board = self.get_other_player_board(turn_player)
 
         # TileState.white for Player.black, TileState.black for Player.white
@@ -262,16 +274,17 @@ class HnefataflBoard:
 
         # check capture king
         king_x, king_y = self.king_position
-        if self.king_board[king_x + 1, king_y] == TileBattleState.hostile \
-                and self.king_board[king_x - 1, king_y] == TileBattleState.hostile \
-                and self.king_board[king_x, king_y + 1] == TileBattleState.hostile \
-                and self.king_board[king_x, king_y - 1] == TileBattleState.hostile:
+        if self.board[king_x + 1, king_y] == TileState.black \
+                and self.board[king_x - 1, king_y] == TileState.black \
+                and self.board[king_x, king_y + 1] == TileState.black \
+                and self.board[king_x, king_y - 1] == TileState.black:
             self.outcome = Outcome.black
             has_captured = True
-            print("Black wins by capturing the king at " + str(self.king_position)) + "!"
+            print("Black wins by capturing the king at " + str(self.king_position) + "!")
 
-        # reset board_states_dict
+        # reset turn count and board_states_dict
         if has_captured:
+            self.turns_without_capture_count = 0
             self.board_states_dict.clear()
 
     # returns the player's board who is not "player":
@@ -284,7 +297,6 @@ class HnefataflBoard:
         return "Gameboard: \n" + str(self.board) + \
                "\nWhiteboard: \n" + str(self.white_board) + \
                "\nBlackboard: \n" + str(self.black_board) + \
-               "\nKingboard: \n" + str(self.king_board) + \
                "\nMoveboard: \n" + str(self.move_board) + \
                "\nPlayerboard: \n" + str(self.player_board)
 
