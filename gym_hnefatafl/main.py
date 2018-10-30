@@ -15,7 +15,6 @@ def __play_game__(black_agent, white_agent):
     env = HnefataflEnv()
     black_turn = True
 
-    # for i in range(1000):
     while True:
         # ask the agents for a move
         action = turn_agent().make_move(env)
