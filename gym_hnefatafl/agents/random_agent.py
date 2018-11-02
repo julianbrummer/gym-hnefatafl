@@ -13,9 +13,9 @@ class RandomAgent(object):
     # the agent always sends the king to one of the corners if able
     # (this causes white to win basically all the time)
     def make_move(self, env: HnefataflEnv) -> ((int, int), (int, int)):
-        for pos_from, pos_to in env.action_space:
-            if pos_to in self.corners:
-                return pos_from, pos_to
+        # for pos_from, pos_to in env.action_space:
+        #    if pos_to in self.corners:
+        #        return pos_from, pos_to
         return random.choice(env.action_space)
 
     # does nothing in this agent, but is here because other agents need it
