@@ -5,6 +5,7 @@ from gym_hnefatafl.envs.board import HnefataflBoard
 from gym_hnefatafl.envs.board import Player
 
 
+# the environment class necessary for integration with gym
 class HnefataflEnv(gym.Env):
     """The main OpenAI Gym class. It encapsulates an environment with
     arbitrary behind-the-scenes dynamics. An environment can be
