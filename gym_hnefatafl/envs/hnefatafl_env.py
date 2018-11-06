@@ -35,7 +35,7 @@ class HnefataflEnv(gym.Env):
 
     def __init__(self):
         self.viewer = None
-        self._hnefatafl = HnefataflBoard()
+        self.hnefatafl = HnefataflBoard()
         self._blackTurn = True
         self.action_space = []
         self.recalculate_action_space()
@@ -54,16 +54,16 @@ class HnefataflEnv(gym.Env):
             info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
         """
 
-        self._hnefatafl.do_action(action, self.turn_player())
+        self.hnefatafl.do_action(action, self.turn_player())
         self._blackTurn = not self._blackTurn
         self.recalculate_action_space()
 
-        game_over = self._hnefatafl.outcome != Outcome.ongoing
-        return self, 0, game_over, self._hnefatafl.outcome
+        game_over = self.hnefatafl.outcome != Outcome.ongoing
+        return self, 0, game_over, self.hnefatafl.outcome
 
     # recalculates the action space for the agent whose turn it is next
     def recalculate_action_space(self):
-        self.action_space = self._hnefatafl.get_valid_actions(self.turn_player())
+        self.action_space = self.hnefatafl.get_valid_actions(self.turn_player())
 
     # returns either Player.black or Player.white depending on whose turn it is
     def turn_player(self):
@@ -74,7 +74,7 @@ class HnefataflEnv(gym.Env):
         Returns: observation (object): the initial observation of the
             space.
         """
-        self._hnefatafl = HnefataflBoard()
+        self.hnefatafl = HnefataflBoard()
         self._blackTurn = True
         self.recalculate_action_space()
 
@@ -101,7 +101,7 @@ class HnefataflEnv(gym.Env):
 
     def get_image(self, mode):
         # print(self._hnefatafl.board)
-        img = Render_utils.room_to_rgb(self._hnefatafl.board)
+        img = Render_utils.room_to_rgb(self.hnefatafl.board)
         # if mode.startswith('tiny_'):
             # img = Render_utils.room_to_tiny_world_rgb(self.room_state, self.room_fixed, scale=4)
 
@@ -147,4 +147,4 @@ class HnefataflEnv(gym.Env):
 
     # prints the tile state board
     def __str__(self):
-        return str(self._hnefatafl.board)
+        return str(self.hnefatafl.board)
