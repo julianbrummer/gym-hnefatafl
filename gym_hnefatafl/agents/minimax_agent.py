@@ -1,11 +1,12 @@
 import copy
 import math
 import operator
+import numpy as np
 
 from gym_hnefatafl.envs import HnefataflEnv
-from gym_hnefatafl.envs.board import Player
+from gym_hnefatafl.envs.board import Player, TileState
 
-MINIMAX_SEARCH_DEPTH = 3
+MINIMAX_SEARCH_DEPTH = 2
 
 
 # returns the other player
@@ -14,8 +15,21 @@ def other_player(this_player):
 
 
 # returns "<" for black and ">" for white
-def minimax_comp(this_player):
-    return operator.__lt__() if this_player == Player.black else operator.__gt__()
+def minimax_comp(this_player, a, b):
+    return operator.__lt__(a, b) if this_player == Player.black else operator.__gt__(a, b)
+
+
+# returns (number of black pieces, number of white pieces) on the given board
+def calculate_number_of_pieces(board):
+    white = 0
+    black = 0
+    for row in board.board:
+        for tile in row:
+            if tile == TileState.white:
+                white += 1
+            elif tile == TileState.black:
+                black += 1
+    return black, white
 
 
 # an agent that uses a minimax search for estimating which move is best
@@ -38,7 +52,7 @@ class MinimaxAgent(object):
     def minimax_search(self, env, turn_player, depth):
         # evaluate this node using the heuristic if the max depth is reached
         if depth == MINIMAX_SEARCH_DEPTH:
-            return self.__evaluate__(env.hnefatafl)
+            return None, self.__evaluate__(env.hnefatafl)
 
         # initialize minimax value with either positive or negative infinity
         best_minimax_value_found = math.inf if turn_player == Player.black else -math.inf
@@ -48,15 +62,16 @@ class MinimaxAgent(object):
         for action in env.action_space:
             # deep copy so that nothing on the real board is changed
             env_copy = copy.deepcopy(env)
-            env_copy.step(action)
-            subtree_minimax_action, subtree_minimax_value = self.minimax_search(env_copy, depth + 1,
-                                                                                other_player(turn_player))
+            env_copy.step(action, False)
+            subtree_minimax_action, subtree_minimax_value = self.minimax_search(env_copy, other_player(turn_player),
+                                                                                depth + 1)
             # if better play is found, update minimax action and minimax value
-            if minimax_comp(turn_player)(subtree_minimax_value, best_minimax_value_found):
+            if minimax_comp(turn_player, subtree_minimax_value, best_minimax_value_found):
                 best_minimax_value_found = subtree_minimax_value
                 best_action_found = action
         return best_action_found, best_minimax_value_found
 
     # estimates the value of the given board
     def __evaluate__(self, board):
-        raise NotImplementedError
+        black_pieces, white_pieces = calculate_number_of_pieces(board)
+        return white_pieces - black_pieces

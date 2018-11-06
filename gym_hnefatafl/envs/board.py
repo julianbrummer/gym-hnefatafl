@@ -198,13 +198,14 @@ class HnefataflBoard:
         return valid_actions
 
     # executes "move" for the player "player" whose turn it is
-    def do_action(self, move, player):
+    def do_action(self, move, player, print_move=True):
         (from_x, from_y), (to_x, to_y) = move
         if self.can_do_action(move, player):
             # increase turn counts
             self.turn_count += 1
             self.turns_without_capture_count += 1
-            print(str(player) + " moves a piece from " + str((from_x, from_y)) + " to " + str((to_x, to_y)))
+            if print_move:
+                print(str(player) + " moves a piece from " + str((from_x, from_y)) + " to " + str((to_x, to_y)))
 
             # if king is moving: update king position and check if he reached a corner
             if self.board[from_x, from_y] == TileState.king:
@@ -216,7 +217,7 @@ class HnefataflBoard:
             # update the board itself and capture pieces if applicable
             self.board[to_x, to_y] = self.board[from_x, from_y]
             self.board[from_x, from_y] = TileState.empty if (from_x, from_y) != (6, 6) else TileState.throne
-            self.capture((to_x, to_y), player)
+            self.capture((to_x, to_y), player, print_move)
 
             # update the board_states_dictionary so that we know whether the present board has occurred for the 3rd time
             if self.board.tobytes() in self.board_states_dict:
@@ -239,7 +240,7 @@ class HnefataflBoard:
             raise Exception(str(player) + " tried to make move " + str(move) + ", but that move is not possible.")
 
     # captures all enemy pieces around the position "position_to" that the player "player" has just moved a piece to
-    def capture(self, position_to, turn_player):
+    def capture(self, position_to, turn_player, print_capture=True):
         x, y = position_to
         other_player_board = self.get_other_player_board(turn_player)
 
@@ -255,22 +256,26 @@ class HnefataflBoard:
         if self.board[x + 1, y] == opponent_pawn_tile_state and other_player_board[x + 2, y] == TileBattleState.hostile:
             self.board[x + 1, y] = TileState.empty
             has_captured = True
-            print(str(turn_player) + " captures piece at " + str((x + 1, y)))
+            if print_capture:
+                print(str(turn_player) + " captures piece at " + str((x + 1, y)))
         # check capture left
         if self.board[x - 1, y] == opponent_pawn_tile_state and other_player_board[x - 2, y] == TileBattleState.hostile:
             self.board[x - 1, y] = TileState.empty
             has_captured = True
-            print(str(turn_player) + " captures piece at " + str((x - 1, y)))
+            if print_capture:
+                print(str(turn_player) + " captures piece at " + str((x - 1, y)))
         # check capture bottom
         if self.board[x, y + 1] == opponent_pawn_tile_state and other_player_board[x, y + 2] == TileBattleState.hostile:
             self.board[x, y + 1] = TileState.empty
             has_captured = True
-            print(str(turn_player) + " captures piece at " + str((x, y + 1)))
+            if print_capture:
+                print(str(turn_player) + " captures piece at " + str((x, y + 1)))
         # check capture top
         if self.board[x, y - 1] == opponent_pawn_tile_state and other_player_board[x, y - 2] == TileBattleState.hostile:
             self.board[x, y - 1] = TileState.empty
             has_captured = True
-            print(str(turn_player) + " captures piece at " + str((x, y - 1)))
+            if print_capture:
+                print(str(turn_player) + " captures piece at " + str((x, y - 1)))
 
         # check capture king
         king_x, king_y = self.king_position

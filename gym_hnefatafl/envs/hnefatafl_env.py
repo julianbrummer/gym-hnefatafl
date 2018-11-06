@@ -40,7 +40,7 @@ class HnefataflEnv(gym.Env):
         self.action_space = []
         self.recalculate_action_space()
 
-    def step(self, action):
+    def step(self, action, print_move=True):
         """Run one timestep of the environment's dynamics. When end of
         episode is reached, you are responsible for calling `reset()`
         to reset this environment's state.
@@ -54,7 +54,7 @@ class HnefataflEnv(gym.Env):
             info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
         """
 
-        self.hnefatafl.do_action(action, self.turn_player())
+        self.hnefatafl.do_action(action, self.turn_player(), print_move)
         self._blackTurn = not self._blackTurn
         self.recalculate_action_space()
 

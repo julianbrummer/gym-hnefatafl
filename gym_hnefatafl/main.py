@@ -1,5 +1,6 @@
 import time
 
+from gym_hnefatafl.agents.minimax_agent import MinimaxAgent
 from gym_hnefatafl.agents.random_agent import RandomAgent
 from gym_hnefatafl.envs.hnefatafl_env import HnefataflEnv
 from gym_hnefatafl.envs.board import Player
@@ -22,7 +23,7 @@ def __play_game__(black_agent, white_agent):
 
         # render the scene
         env.render()
-        time.sleep(.1)
+        time.sleep(1)
 
         # give reward
         turn_agent().give_reward(reward)
@@ -36,5 +37,5 @@ def __play_game__(black_agent, white_agent):
 
 
 if __name__ == "__main__":
-    print(__play_game__(RandomAgent(Player.black), RandomAgent(Player.white)))
+    print(__play_game__(MinimaxAgent(Player.black), MinimaxAgent(Player.white)))
 
