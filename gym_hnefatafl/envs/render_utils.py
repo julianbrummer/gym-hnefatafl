@@ -1,6 +1,9 @@
 import numpy as np
 import pkg_resources
 from scipy import misc
+from PIL import Image
+
+# your own image operations
 from gym_hnefatafl.envs.board import TileState
 
 
@@ -13,31 +16,25 @@ class Render_utils:
         :return:
         """
         resource_package = __name__
-
-        # room = np.array(room)
-        # if not room_structure is None:
-        # Change the ID of a player on a target
-        #   room[(room == 5) & (room_structure == 2)] = 6
-
+        piece_unicode = {1: "♟", 2: "♟", 3: "♛"}
         # Load images, representing the corresponding situation
-        white_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'whiteplayer.png')))
-        white = misc.imread(white_filename)
-
+        white_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'whiteplayer1.png')))
+        white = Image.open(white_filename).convert('RGB')
+        #white =piece_unicode(1);
         black_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'blackplayer.png')))
-        black = misc.imread(black_filename)
+        black = Image.open(black_filename).convert('RGB')
 
-        king_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'king.png')))
-        king = misc.imread(king_filename)
+        king_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'king1.png')))
+        king= Image.open(king_filename).convert('RGB')
 
         corner_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'corner.png')))
-        corner = misc.imread(corner_filename)
+        corner = Image.open(corner_filename).convert('RGB')
 
         border_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'border.png')))
-        border = misc.imread(border_filename)
+        border = Image.open(border_filename).convert('RGB')
 
-        empty_filename = pkg_resources.resource_filename(resource_package,
-                                                         '/'.join(('surface', 'emptyfield.png')))
-        empty = misc.imread(empty_filename)
+        empty_filename = pkg_resources.resource_filename(resource_package,'/'.join(('surface', 'emptyfield1.png')))
+        empty = Image.open(empty_filename).convert('RGB')
 
         throne_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'throne.png')))
         throne = misc.imread(throne_filename)
@@ -50,8 +47,6 @@ class Render_utils:
             for j in range(13):
                 y_j = j * 32
                 surfaces_id = int(board[i, j])
-                # print(type(board[i, j]))
-                # print(surfaces_id)
                 room_rgb[x_i:(x_i + 32), y_j:(y_j + 32), :] = surfaces[surfaces_id]
 
         return room_rgb
