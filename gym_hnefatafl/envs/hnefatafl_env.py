@@ -1,3 +1,5 @@
+import copy
+
 import gym
 from gym_hnefatafl.envs.render_utils import Render_utils
 from gym_hnefatafl.envs.board import Outcome
@@ -55,16 +57,20 @@ class HnefataflEnv(gym.Env):
             info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
         """
 
-        self._hnefatafl.do_action(action, self.turn_player())
+        captured_pieces = self._hnefatafl.do_action(action, self.turn_player())
         self._blackTurn = not self._blackTurn
         self.recalculate_action_space()
 
         game_over = self._hnefatafl.outcome != Outcome.ongoing
-        return self, 0, game_over, self._hnefatafl.outcome
+        return self, 0, game_over, self._hnefatafl.outcome, captured_pieces
 
     # returns a copy of the internal board
     def get_board(self):
-        return self._hnefatafl.copy()
+        board_copy = copy.deepcopy(self._hnefatafl)
+        board_copy.print_to_console = False
+        return board_copy
+
+        # return self._hnefatafl.copy()
 
     # recalculates the action space for the agent whose turn it is next
     def recalculate_action_space(self):

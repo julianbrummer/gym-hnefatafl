@@ -19,7 +19,7 @@ def __play_game__(black_agent, white_agent):
     while True:
         # ask the agents for a move
         action = turn_agent().make_move(env)
-        observation, reward, done, info = env.step(action)
+        observation, reward, done, info, captured_pieces = env.step(action)
 
         # render the scene
         env.render()

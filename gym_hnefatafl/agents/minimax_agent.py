@@ -1,10 +1,11 @@
+import copy
 import math
 import operator
 
 from gym_hnefatafl.envs import HnefataflEnv
 from gym_hnefatafl.envs.board import Player, TileState, HnefataflBoard
 
-MINIMAX_SEARCH_DEPTH = 1
+MINIMAX_SEARCH_DEPTH = 2
 
 
 # returns the other player
@@ -59,7 +60,7 @@ class MinimaxAgent(object):
         # loop over all actions and calculate the action with best minimax value
         for action in board.get_valid_actions(turn_player):
             # deep copy so that nothing on the real board is changed
-            board_copy = board.copy()
+            board_copy = copy.deepcopy(board)
             board_copy.do_action(action, turn_player)
             subtree_minimax_action, subtree_minimax_value = self.minimax_search(board_copy, other_player(turn_player),
                                                                                 depth + 1)

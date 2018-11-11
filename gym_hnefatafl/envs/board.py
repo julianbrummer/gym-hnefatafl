@@ -119,19 +119,6 @@ class HnefataflBoard:
         self.turn_count = 0
         self.turns_without_capture_count = 0
 
-    # creates a deep copy of this board
-    def copy(self):
-        board_copy = HnefataflBoard()
-        board_copy.board = np.copy(self.board)
-        board_copy.king_position = self.king_position
-        board_copy.board_states_dict = copy.deepcopy(self.board_states_dict)
-        board_copy.outcome = self.outcome
-        board_copy.turn_count = self.turn_count
-        board_copy.turns_without_capture_count = self.turns_without_capture_count
-        board_copy.print_to_console = False
-        board_copy.update_board_states()
-        return board_copy
-
     def update_board_states(self):
 
         # battle state for white soldiers (corners, empty throne and black soldiers are hostile)
