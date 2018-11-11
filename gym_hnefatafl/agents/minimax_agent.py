@@ -1,12 +1,10 @@
-import copy
 import math
 import operator
-import numpy as np
 
 from gym_hnefatafl.envs import HnefataflEnv
-from gym_hnefatafl.envs.board import Player, TileState
+from gym_hnefatafl.envs.board import Player, TileState, HnefataflBoard
 
-MINIMAX_SEARCH_DEPTH = 2
+MINIMAX_SEARCH_DEPTH = 1
 
 
 # returns the other player
@@ -39,31 +37,31 @@ class MinimaxAgent(object):
 
     # chooses a move based on a minimax search with the __evaluate__ heuristic further below
     def make_move(self, env: HnefataflEnv) -> ((int, int), (int, int)):
-        minimax_action, minimax_value = self.minimax_search(env, self.player, 0)
+        minimax_action, minimax_value = self.minimax_search(env.get_board(), self.player, 0)
         return minimax_action
 
     # does nothing yet
     def give_reward(self, reward):
         pass
 
-    # returns the minimax action and minimax value for the given environment and the turn player.
+    # returns the minimax action and minimax value for the given board and the turn player.
     # The calculation is cut off at the depth that is specified at the top of this file
     # white is maximizer, black is minimizer
-    def minimax_search(self, env, turn_player, depth):
+    def minimax_search(self, board: HnefataflBoard, turn_player, depth):
         # evaluate this node using the heuristic if the max depth is reached
         if depth == MINIMAX_SEARCH_DEPTH:
-            return None, self.__evaluate__(env.hnefatafl)
+            return None, self.__evaluate__(board)
 
         # initialize minimax value with either positive or negative infinity
         best_minimax_value_found = math.inf if turn_player == Player.black else -math.inf
         best_action_found = None
 
         # loop over all actions and calculate the action with best minimax value
-        for action in env.action_space:
+        for action in board.get_valid_actions(turn_player):
             # deep copy so that nothing on the real board is changed
-            env_copy = copy.deepcopy(env)
-            env_copy.step(action, False)
-            subtree_minimax_action, subtree_minimax_value = self.minimax_search(env_copy, other_player(turn_player),
+            board_copy = board.copy()
+            board_copy.do_action(action, turn_player)
+            subtree_minimax_action, subtree_minimax_value = self.minimax_search(board_copy, other_player(turn_player),
                                                                                 depth + 1)
             # if better play is found, update minimax action and minimax value
             if minimax_comp(turn_player, subtree_minimax_value, best_minimax_value_found):

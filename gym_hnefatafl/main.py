@@ -38,6 +38,6 @@ def __play_game__(black_agent, white_agent):
 
 if __name__ == "__main__":
     print(__play_game__(MinimaxAgent(Player.black), MinimaxAgent(Player.white)))
-    #Currently only for testing
-    #print(__play_game__(RandomAgent(Player.black), RandomAgent(Player.white)))
+    # Currently only for testing
+    # print(__play_game__(RandomAgent(Player.black), RandomAgent(Player.white)))
 
