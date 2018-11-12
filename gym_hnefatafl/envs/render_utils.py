@@ -18,13 +18,13 @@ class Render_utils:
         resource_package = __name__
         piece_unicode = {1: "♟", 2: "♟", 3: "♛"}
         # Load images, representing the corresponding situation
-        white_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'whiteplayer.png')))
+        white_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'whiteplayer1.png')))
         white = Image.open(white_filename).convert('RGB')
         #white =piece_unicode(1);
         black_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'blackplayer.png')))
         black = Image.open(black_filename).convert('RGB')
 
-        king_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'king.png')))
+        king_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'king1.png')))
         king= Image.open(king_filename).convert('RGB')
 
         corner_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'corner.png')))
@@ -33,7 +33,7 @@ class Render_utils:
         border_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'border.png')))
         border = Image.open(border_filename).convert('RGB')
 
-        empty_filename = pkg_resources.resource_filename(resource_package,'/'.join(('surface', 'emptyfield.png')))
+        empty_filename = pkg_resources.resource_filename(resource_package,'/'.join(('surface', 'emptyfield1.png')))
         empty = Image.open(empty_filename).convert('RGB')
 
         throne_filename = pkg_resources.resource_filename(resource_package, '/'.join(('surface', 'throne.png')))
