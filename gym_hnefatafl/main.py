@@ -23,7 +23,7 @@ def __play_game__(black_agent, white_agent):
 
         # render the scene
         env.render()
-        time.sleep(1)
+        #time.sleep(1)
 
         # give reward
         turn_agent().give_reward(reward)
