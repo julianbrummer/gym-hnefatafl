@@ -14,7 +14,7 @@ class TileState(IntEnum):
     empty = 0   # neutral
     white = 1   # hostile to black
     black = 2   # hostile to white and king
-    king = 3    # unarmed, hostile to no one
+    king = 3    # hostile to black
     throne = 4  # the empty throne is hostile to any piece
     corner = 5  # target tile for the king, hostile to any piece
     border = 6  # not a reachable tile, but hostile to king
@@ -74,7 +74,39 @@ class HnefataflBoard:
         # all instances of this class that are a copy of the original class.
         self.print_to_console = True
 
+        # self.test_board()
         self.reset_board()
+
+    def test_board(self):
+        # empty
+        self.board = np.zeros((13, 13))  # TileStates
+        self.white_board = np.zeros((13, 13))  # TileBattleStates
+        self.black_board = np.zeros((13, 13))  # TileBattleStates
+        self.move_board = np.zeros((13, 13))  # TileMoveStates
+        self.player_board = np.zeros((13, 13))  # Player
+
+        # black
+        self.board[1, 6] = TileState.black
+
+        # king
+        self.board[6, 6] = TileState.king
+
+        # border
+        self.board[0, :] = TileState.border
+        self.board[12, :] = TileState.border
+        self.board[:, 0] = TileState.border
+        self.board[:, 12] = TileState.border
+        # corner
+        self.board[1, 1] = TileState.corner
+        self.board[1, 11] = TileState.corner
+        self.board[11, 11] = TileState.corner
+        self.board[11, 1] = TileState.corner
+
+        self.update_board_states()
+        self.board_states_dict = {self.board.tobytes(): 1}
+        self.outcome = Outcome.ongoing
+        self.turn_count = 0
+        self.turns_without_capture_count = 0
 
     def reset_board(self):
         # empty

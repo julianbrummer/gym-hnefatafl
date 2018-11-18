@@ -1,11 +1,14 @@
 import copy
 import math
 import operator
+import random
+from bisect import bisect_left
 
+from gym_hnefatafl.agents.Evaluation import evaluate
 from gym_hnefatafl.envs import HnefataflEnv
-from gym_hnefatafl.envs.board import Player, TileState, HnefataflBoard
+from gym_hnefatafl.envs.board import Player, HnefataflBoard, Outcome
 
-MINIMAX_SEARCH_DEPTH = 2
+MINIMAX_SEARCH_DEPTH = 3
 
 
 # returns the other player
@@ -14,21 +17,22 @@ def other_player(this_player):
 
 
 # returns "<" for black and ">" for white
-def minimax_comp(this_player, a, b):
-    return operator.__lt__(a, b) if this_player == Player.black else operator.__gt__(a, b)
+def minimax_comp(this_player):
+    return operator.__lt__ if this_player == Player.black else operator.__gt__
 
 
-# returns (number of black pieces, number of white pieces) on the given board
-def calculate_number_of_pieces(board):
-    white = 0
-    black = 0
-    for row in board.board:
-        for tile in row:
-            if tile == TileState.white:
-                white += 1
-            elif tile == TileState.black:
-                black += 1
-    return black, white
+# makes a copy of the board for each action and executes the action on the board.
+# The (action, board) pairs are inserted into a list that is sorted by the number
+# of pieces that are captured when performing the action
+def reordered_boards_after_action(board, turn_player):
+    boards = []
+    captures = []
+    for action in board.get_valid_actions(turn_player):
+        board_copy = copy.deepcopy(board)
+        captured = -len(board_copy.do_action(action, turn_player))
+        insertion_index = bisect_left(captures, captured)
+        boards.insert(insertion_index, (action, board_copy))
+    return boards
 
 
 # an agent that uses a minimax search for estimating which move is best
@@ -38,8 +42,9 @@ class MinimaxAgent(object):
 
     # chooses a move based on a minimax search with the __evaluate__ heuristic further below
     def make_move(self, env: HnefataflEnv) -> ((int, int), (int, int)):
-        minimax_action, minimax_value = self.minimax_search(env.get_board(), self.player, 0)
-        return minimax_action
+        # minimax_action, minimax_value = self.minimax_search(env.get_board(), self.player, 0)
+        minimax_action, minimax_value = self.alphabeta(env.get_board(), 0, -math.inf, math.inf, self.player)
+        return random.choice(env.action_space) if minimax_action is None else minimax_action
 
     # does nothing yet
     def give_reward(self, reward):
@@ -50,27 +55,49 @@ class MinimaxAgent(object):
     # white is maximizer, black is minimizer
     def minimax_search(self, board: HnefataflBoard, turn_player, depth):
         # evaluate this node using the heuristic if the max depth is reached
-        if depth == MINIMAX_SEARCH_DEPTH:
-            return None, self.__evaluate__(board)
+        if depth == MINIMAX_SEARCH_DEPTH or board.outcome != Outcome.ongoing:
+            return None, evaluate(board, turn_player)
 
         # initialize minimax value with either positive or negative infinity
         best_minimax_value_found = math.inf if turn_player == Player.black else -math.inf
         best_action_found = None
 
         # loop over all actions and calculate the action with best minimax value
-        for action in board.get_valid_actions(turn_player):
-            # deep copy so that nothing on the real board is changed
-            board_copy = copy.deepcopy(board)
-            board_copy.do_action(action, turn_player)
-            subtree_minimax_action, subtree_minimax_value = self.minimax_search(board_copy, other_player(turn_player),
+        for action, next_board in reordered_boards_after_action(board, turn_player):
+            subtree_minimax_action, subtree_minimax_value = self.minimax_search(next_board, other_player(turn_player),
                                                                                 depth + 1)
             # if better play is found, update minimax action and minimax value
-            if minimax_comp(turn_player, subtree_minimax_value, best_minimax_value_found):
+            if minimax_comp(turn_player)(subtree_minimax_value, best_minimax_value_found):
                 best_minimax_value_found = subtree_minimax_value
                 best_action_found = action
         return best_action_found, best_minimax_value_found
 
-    # estimates the value of the given board
-    def __evaluate__(self, board):
-        black_pieces, white_pieces = calculate_number_of_pieces(board)
-        return white_pieces - black_pieces
+    # does the same as minimax_search, but uses alpha-beta-pruning to make it faster. initialize with
+    # depth = 0, alpha = -math.inf, beta = math.inf
+    def alphabeta(self, board, depth, alpha, beta, turn_player):
+        if depth == MINIMAX_SEARCH_DEPTH or board.outcome != Outcome.ongoing:
+            return None, evaluate(board, turn_player)
+        if turn_player == Player.white:
+            value = -math.inf
+            best_action = None
+            for action, next_board in reordered_boards_after_action(board, Player.white):
+                subtree_best_action, subtree_alpha = self.alphabeta(next_board, depth + 1, alpha, beta, Player.black)
+                if value < subtree_alpha:
+                    value = subtree_alpha
+                    best_action = action
+                    alpha = max(alpha, value)
+                    if alpha >= beta:
+                        break
+            return best_action, value
+        else:
+            value = math.inf
+            best_action = None
+            for action, next_board in reordered_boards_after_action(board, Player.black):
+                subtree_best_action, subtree_beta = self.alphabeta(next_board, depth + 1, alpha, beta, Player.white)
+                if value > subtree_beta:
+                    value = subtree_beta
+                    best_action = action
+                beta = min(beta, value)
+                if alpha >= beta:
+                    break
+            return best_action, value
