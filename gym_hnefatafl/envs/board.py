@@ -1,5 +1,4 @@
 import numpy as np
-import copy
 from enum import IntEnum
 
 from gym_hnefatafl.envs.rule_config import MAX_NUMBER_OF_TURNS, MAX_NUMBER_OF_TURNS_WITHOUT_CAPTURE
@@ -17,13 +16,7 @@ class TileState(IntEnum):
     king = 3    # hostile to black
     throne = 4  # the empty throne is hostile to any piece
     corner = 5  # target tile for the king, hostile to any piece
-    border = 6  # not a reachable tile, but hostile to king
-
-
-class TileBattleState(IntEnum):
-    hostile = -1
-    neutral = 0
-    allied = 1
+    border = 6  # not a reachable tile
 
 
 # Describes whether a tile is traversable.
@@ -46,23 +39,20 @@ class HnefataflBoard:
     def __init__(self):
         # empty
         self.board = np.zeros((13, 13))         # TileStates
-        self.white_board = np.zeros((13, 13))   # TileBattleStates
-        self.black_board = np.zeros((13, 13))   # TileBattleStates
         self.move_board = np.zeros((13, 13))    # TileMoveStates
         self.player_board = np.zeros((13, 13))  # Players
 
         self.king_position = (6, 6)
 
         # holds all board states and the frequency how often they occurred
-        # with the current number of pieces on the board (meaning it is reset
-        # every time a piece is captured). If we wouldn't reset it, then
-        # especially with the random agents we could get a very large memory
-        # footprint. Since pieces can't get back onto the board, it is
-        # possible to reset this whenever a piece is captured
         self.board_states_dict = {self.board.tobytes(): 1}
 
         # the outcome of the current match
         self.outcome = Outcome.ongoing
+
+        # number of pieces of a color. white pieces includes the king
+        self.white_pieces = 0
+        self.black_pieces = 0
 
         # turn counts for draw condition
         self.turn_count = 0
@@ -74,45 +64,17 @@ class HnefataflBoard:
         # all instances of this class that are a copy of the original class.
         self.print_to_console = True
 
+        # for reverting actions
+        self.action_stack = []
+        self.capture_stack = []
+        self.turns_without_capture_count_stack = []
+
         # self.test_board()
         self.reset_board()
-
-    def test_board(self):
-        # empty
-        self.board = np.zeros((13, 13))  # TileStates
-        self.white_board = np.zeros((13, 13))  # TileBattleStates
-        self.black_board = np.zeros((13, 13))  # TileBattleStates
-        self.move_board = np.zeros((13, 13))  # TileMoveStates
-        self.player_board = np.zeros((13, 13))  # Player
-
-        # black
-        self.board[1, 6] = TileState.black
-
-        # king
-        self.board[6, 6] = TileState.king
-
-        # border
-        self.board[0, :] = TileState.border
-        self.board[12, :] = TileState.border
-        self.board[:, 0] = TileState.border
-        self.board[:, 12] = TileState.border
-        # corner
-        self.board[1, 1] = TileState.corner
-        self.board[1, 11] = TileState.corner
-        self.board[11, 11] = TileState.corner
-        self.board[11, 1] = TileState.corner
-
-        self.update_board_states()
-        self.board_states_dict = {self.board.tobytes(): 1}
-        self.outcome = Outcome.ongoing
-        self.turn_count = 0
-        self.turns_without_capture_count = 0
 
     def reset_board(self):
         # empty
         self.board = np.zeros((13, 13))        # TileStates
-        self.white_board = np.zeros((13, 13))  # TileBattleStates
-        self.black_board = np.zeros((13, 13))  # TileBattleStates
         self.move_board = np.zeros((13, 13))   # TileMoveStates
         self.player_board = np.zeros((13, 13)) # Player
 
@@ -145,6 +107,9 @@ class HnefataflBoard:
         self.board[11, 11] = TileState.corner
         self.board[11, 1] = TileState.corner
 
+        self.white_pieces = 13
+        self.black_pieces = 24
+
         self.update_board_states()
         self.board_states_dict = {self.board.tobytes(): 1}
         self.outcome = Outcome.ongoing
@@ -152,23 +117,6 @@ class HnefataflBoard:
         self.turns_without_capture_count = 0
 
     def update_board_states(self):
-
-        # battle state for white soldiers (corners, empty throne and black soldiers are hostile)
-        # white soldiers are allied and the king is neutral, since he is unarmed
-        self.white_board = np.zeros((13, 13))
-        hostile_mask = (self.board == TileState.black) | (self.board == TileState.corner) \
-                       | (self.board == TileState.throne)
-        np.place(self.white_board, self.board == TileState.white, TileBattleState.allied)
-        np.place(self.white_board, hostile_mask, TileBattleState.hostile)
-
-        # battle state for black soldiers (corners, empty throne and white soldiers are hostile)
-        # black soldiers are allied
-        self.black_board = np.zeros((13, 13))
-        hostile_mask = (self.board == TileState.white) | (self.board == TileState.corner) \
-                       | (self.board == TileState.throne) | (self.board == TileState.king)
-        np.place(self.black_board, self.board == TileState.black, TileBattleState.allied)
-        np.place(self.black_board, hostile_mask, TileBattleState.hostile)
-
         # movable state for any player (borders, corners, and soldiers are blocking)
         # anything else is traversable
         self.move_board = np.zeros((13, 13))
@@ -207,7 +155,8 @@ class HnefataflBoard:
         valid_actions = []
         # first direction
         for x_other in reversed(range(0, x)):
-            if self.move_board[x_other, y] == 0 and (is_king or self.board[x_other, y] != TileState.corner):
+            if self.move_board[x_other, y] == TileMoveState.traversable\
+                    and (is_king or self.board[x_other, y] != TileState.corner):
                 if (not (x_other, y) == (6, 6)) or is_king:  # exclude throne if the piece is not the king
                     valid_actions.append(((x, y), (x_other, y)))
             else:
@@ -236,12 +185,19 @@ class HnefataflBoard:
         return valid_actions
 
     # executes "move" for the player "player" whose turn it is
+    # except when the game is already over. In this case it does nothing
     def do_action(self, move, player):
+        # return immediately if game over
+        if self.outcome != Outcome.ongoing:
+            return
+
         (from_x, from_y), (to_x, to_y) = move
         if self.can_do_action(move, player):
             # increase turn counts
             self.turn_count += 1
+            self.turns_without_capture_count_stack.append(self.turns_without_capture_count)
             self.turns_without_capture_count += 1
+            self.action_stack.append((move, self.board[from_x, from_y]))
             if self.print_to_console:
                 print(str(player) + " moves a piece from " + str((from_x, from_y)) + " to " + str((to_x, to_y)))
 
@@ -258,6 +214,7 @@ class HnefataflBoard:
             self.board[to_x, to_y] = self.board[from_x, from_y]
             self.board[from_x, from_y] = TileState.empty if (from_x, from_y) != (6, 6) else TileState.throne
             captured_pieces = self.capture((to_x, to_y), player)
+            self.capture_stack.append(captured_pieces)
 
             # update the board_states_dictionary so that we know whether the present board has occurred for the 3rd time
             if self.board.tobytes() in self.board_states_dict:
@@ -285,75 +242,105 @@ class HnefataflBoard:
     # captures all enemy pieces around the position "position_to" that the player "player" has just moved a piece to
     def capture(self, position_to, turn_player):
         x, y = position_to
-        other_player_board = self.get_other_player_board(turn_player)
         captured_pieces = []
 
+        own_pawn_tile_state = TileState.black if turn_player == Player.black else TileState.white
         # TileState.white for Player.black, TileState.black for Player.white
         # this way is necessary because capturing the king works differently and is done further below
         opponent_pawn_tile_state = TileState.white if turn_player == Player.black else TileState.black
 
-        # this flag marks if at least one piece has been captured
-        # in this case the board_states_dict is reset after capture calculation
-        has_captured = False
-
         # check capture right
-        if self.board[x + 1, y] == opponent_pawn_tile_state and other_player_board[x + 2, y] == TileBattleState.hostile:
+        if self.board[x + 1, y] == opponent_pawn_tile_state \
+                and (self.board[x + 2, y] == own_pawn_tile_state or self.board[x + 2, y] == TileState.corner
+                     or self.board[x + 2, y] == TileState.throne
+                     or (turn_player == Player.white and self.board[x + 2, y] == TileState.king)):
             self.board[x + 1, y] = TileState.empty
             captured_pieces.append((x + 1, y))
-            has_captured = True
             if self.print_to_console:
                 print(str(turn_player) + " captures piece at " + str((x + 1, y)))
         # check capture left
-        if self.board[x - 1, y] == opponent_pawn_tile_state and other_player_board[x - 2, y] == TileBattleState.hostile:
+        if self.board[x - 1, y] == opponent_pawn_tile_state \
+                and (self.board[x - 2, y] == own_pawn_tile_state or self.board[x - 2, y] == TileState.corner
+                     or self.board[x - 2, y] == TileState.throne
+                     or (turn_player == Player.white and self.board[x - 2, y] == TileState.king)):
             self.board[x - 1, y] = TileState.empty
             captured_pieces.append((x - 1, y))
-            has_captured = True
             if self.print_to_console:
                 print(str(turn_player) + " captures piece at " + str((x - 1, y)))
         # check capture bottom
-        if self.board[x, y + 1] == opponent_pawn_tile_state and other_player_board[x, y + 2] == TileBattleState.hostile:
+        if self.board[x, y + 1] == opponent_pawn_tile_state \
+                and (self.board[x, y + 2] == own_pawn_tile_state or self.board[x, y + 2] == TileState.corner
+                     or self.board[x, y + 2] == TileState.throne
+                     or (turn_player == Player.white and self.board[x, y + 2] == TileState.king)):
             self.board[x, y + 1] = TileState.empty
             captured_pieces.append((x, y + 1))
-            has_captured = True
             if self.print_to_console:
                 print(str(turn_player) + " captures piece at " + str((x, y + 1)))
         # check capture top
-        if self.board[x, y - 1] == opponent_pawn_tile_state and other_player_board[x, y - 2] == TileBattleState.hostile:
+        if self.board[x, y - 1] == opponent_pawn_tile_state \
+                and (self.board[x, y - 2] == own_pawn_tile_state or self.board[x, y - 2] == TileState.corner
+                     or self.board[x, y - 2] == TileState.throne
+                     or (turn_player == Player.white and self.board[x, y - 2] == TileState.king)):
             self.board[x, y - 1] = TileState.empty
             captured_pieces.append((x, y - 1))
-            has_captured = True
             if self.print_to_console:
                 print(str(turn_player) + " captures piece at " + str((x, y - 1)))
 
         # check capture king
         king_x, king_y = self.king_position
-        if self.white_board[king_x + 1, king_y] == TileBattleState.hostile \
-                and self.white_board[king_x - 1, king_y] == TileBattleState.hostile \
-                and self.white_board[king_x, king_y + 1] == TileBattleState.hostile \
-                and self.white_board[king_x, king_y - 1] == TileBattleState.hostile:
+        if self.board[king_x + 1, king_y] == TileState.black | TileState.throne \
+                and self.board[king_x - 1, king_y] == TileState.black | TileState.throne \
+                and self.board[king_x, king_y + 1] == TileState.black | TileState.throne \
+                and self.board[king_x, king_y - 1] == TileState.black | TileState.throne:
             self.outcome = Outcome.black
-            has_captured = True
             captured_pieces.append((king_x, king_y))
             if self.print_to_console:
                 print("Black wins by capturing the king at " + str(self.king_position) + "!")
 
-        # reset turn count and board_states_dict
-        if has_captured:
+        if len(captured_pieces) > 0:
             self.turns_without_capture_count = 0
-            self.board_states_dict.clear()
+
+        if turn_player == Player.white:
+            self.black_pieces -= len(captured_pieces)
+        else:
+            self.white_pieces -= len(captured_pieces)
 
         return captured_pieces
 
-    # returns the player's board who is not "player":
-    # white_board if player is black
-    # black_board if player is white
-    def get_other_player_board(self, player):
-        return self.black_board if player == Player.white else self.white_board
+    # reverts the last action and returns the board state to the state before
+    def undo_last_action(self):
+        if len(self.action_stack) > 0:
+            # update board_states_dict
+            if self.board_states_dict[self.board.tobytes()] == 1:
+                self.board_states_dict.pop(self.board.tobytes())
+            else:
+                self.board_states_dict[self.board.tobytes()] -= 1
+
+            # revert the movement of the piece
+            (from_position, to_position), tile_state = self.action_stack.pop()
+            self.board[to_position] = TileState.empty
+            self.board[from_position] = tile_state
+            # update king_position if that action was the king being moved
+            if self.king_position == to_position:
+                self.king_position = from_position
+
+            # revert captures
+            captured_pieces = self.capture_stack.pop()
+            other_player_tile_state = TileState.white if tile_state == TileState.black else TileState.black
+            for position in captured_pieces:
+                self.board[position] = other_player_tile_state if self.king_position != position else TileState.king
+            if tile_state == TileState.black:
+                self.white_pieces += len(captured_pieces)
+            else:
+                self.black_pieces += len(captured_pieces)
+
+            self.outcome = Outcome.ongoing
+            self.turn_count -= 1
+            self.turns_without_capture_count = self.turns_without_capture_count_stack.pop()
+            self.update_board_states()
+        else:
+            raise Exception("undo_last_action() failed because there is no action left to revert.")
 
     def __str__(self):
-        return "Gameboard: \n" + str(self.board) + \
-               "\nWhiteboard: \n" + str(self.white_board) + \
-               "\nBlackboard: \n" + str(self.black_board) + \
-               "\nMoveboard: \n" + str(self.move_board) + \
-               "\nPlayerboard: \n" + str(self.player_board)
+        return str(self.board)
 
