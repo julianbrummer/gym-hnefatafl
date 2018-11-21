@@ -2,6 +2,7 @@ import copy
 import math
 import operator
 import random
+import cProfile
 from bisect import bisect_left
 
 from gym_hnefatafl.agents.Evaluation import evaluate
@@ -9,6 +10,8 @@ from gym_hnefatafl.envs import HnefataflEnv
 from gym_hnefatafl.envs.board import Player, HnefataflBoard, Outcome
 
 MINIMAX_SEARCH_DEPTH = 3
+PROFILE = True
+ALPHA_BETA = True
 
 
 # returns the other player
@@ -42,8 +45,20 @@ class MinimaxAgent(object):
 
     # chooses a move based on a minimax search with the __evaluate__ heuristic further below
     def make_move(self, env: HnefataflEnv) -> ((int, int), (int, int)):
-        # minimax_action, minimax_value = self.minimax_search(env.get_board(), self.player, 0)
-        minimax_action, minimax_value = self.alphabeta(env.get_board(), 0, -math.inf, math.inf, self.player)
+        if PROFILE:
+            prof = cProfile.Profile()
+            if ALPHA_BETA:
+                minimax_action, minimax_value = prof.runcall(self.alphabeta, env.get_board(), 0, -math.inf, math.inf,
+                                                             self.player, )
+            else:
+                minimax_action, minimax_value = prof.runcall(self.minimax_search, env.get_board(), self.player, 0, )
+            prof.print_stats(sort=2)
+        else:
+            if ALPHA_BETA:
+                minimax_action, minimax_value = self.alphabeta(env.get_board(), 0, -math.inf, math.inf, self.player)
+            else:
+                minimax_action, minimax_value = self.minimax_search(env.get_board(), self.player, 0)
+
         return random.choice(env.action_space) if minimax_action is None else minimax_action
 
     # does nothing yet
@@ -63,13 +78,17 @@ class MinimaxAgent(object):
         best_action_found = None
 
         # loop over all actions and calculate the action with best minimax value
-        for action, next_board in reordered_boards_after_action(board, turn_player):
-            subtree_minimax_action, subtree_minimax_value = self.minimax_search(next_board, other_player(turn_player),
+        for action in board.get_valid_actions(turn_player):
+            board.do_action(action, turn_player)
+            subtree_minimax_action, subtree_minimax_value = self.minimax_search(board, other_player(turn_player),
                                                                                 depth + 1)
             # if better play is found, update minimax action and minimax value
             if minimax_comp(turn_player)(subtree_minimax_value, best_minimax_value_found):
                 best_minimax_value_found = subtree_minimax_value
                 best_action_found = action
+
+            # undo move
+            board.undo_last_action()
         return best_action_found, best_minimax_value_found
 
     # does the same as minimax_search, but uses alpha-beta-pruning to make it faster. initialize with
@@ -80,8 +99,10 @@ class MinimaxAgent(object):
         if turn_player == Player.white:
             value = -math.inf
             best_action = None
-            for action, next_board in reordered_boards_after_action(board, Player.white):
-                subtree_best_action, subtree_alpha = self.alphabeta(next_board, depth + 1, alpha, beta, Player.black)
+            for action in board.get_valid_actions(turn_player):
+                board.do_action(action, turn_player)
+                subtree_best_action, subtree_alpha = self.alphabeta(board, depth + 1, alpha, beta, Player.black)
+                board.undo_last_action()
                 if value < subtree_alpha:
                     value = subtree_alpha
                     best_action = action
@@ -92,8 +113,10 @@ class MinimaxAgent(object):
         else:
             value = math.inf
             best_action = None
-            for action, next_board in reordered_boards_after_action(board, Player.black):
-                subtree_best_action, subtree_beta = self.alphabeta(next_board, depth + 1, alpha, beta, Player.white)
+            for action in board.get_valid_actions(turn_player):
+                board.do_action(action, turn_player)
+                subtree_best_action, subtree_beta = self.alphabeta(board, depth + 1, alpha, beta, Player.white)
+                board.undo_last_action()
                 if value > subtree_beta:
                     value = subtree_beta
                     best_action = action
