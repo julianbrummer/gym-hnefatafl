@@ -5,12 +5,12 @@ import random
 import cProfile
 from bisect import bisect_left
 
-from gym_hnefatafl.agents.Evaluation import evaluate
+from gym_hnefatafl.agents.evaluation import evaluate
 from gym_hnefatafl.envs import HnefataflEnv
 from gym_hnefatafl.envs.board import Player, HnefataflBoard, Outcome
 
 MINIMAX_SEARCH_DEPTH = 3
-PROFILE = True
+PROFILE = False
 ALPHA_BETA = True
 
 
