@@ -66,6 +66,32 @@ class Tree(object):
             if current_node is None:
                 break
 
+        # # back value up
+        # # TODO: this part is now implemented according to the paper however not yet invoked in the rest of the code
+        # width = 11
+        # height = 11
+        # value = 0
+        # current_node = self.root
+        # meanValue = 2 * width * height
+        # if self.simulations>16 * width * height:
+        #     meanValue *= self.simulations / (16 * width * height)
+        # value = meanValue
+        # if self.tGames[1] and  self.TGames[0]:
+        #     tAveragedValue=[2]
+        #     for i in tAveragedValue:
+        #         tAveragedValue[i]=(self.tGames[i] * self.tValues[i] + meanValue * value) / (self.tGames[i] + meanValue)
+        #     if self.tGames[1]> self.tGames[0]:
+        #         if self.tValues[1]> value:
+        #             value=tAveragedValue[1]
+        #         elif self.tValues[0]<value:
+        #             value=tAveragedValue[0]
+        #     else:
+        #         value=tAveragedValue[0]
+        # else:
+        #     value=self.tValues[0]
+        # return value
+
+
     # chooses an action and simulates it. Then returns the action
     def __choose_and_simulate_action__(self, board):
         actions = board.get_valid_actions(self.player)
@@ -90,6 +116,10 @@ class Node(object):
         self.is_internal = False
         self.sorted_child_indices = []
         self.action_probabilities = []
+
+        # self.tValue = []
+        # self.tGames = []
+        # self.simulations=0
 
     # chooses and simulates an action
     def choose_and_simulate_action(self, board):
@@ -147,6 +177,7 @@ class Node(object):
         #
         # random_action = np.random.choice(actions, p=probabilities)
         # return random_action
+
 
     # updates the internal values
     def update_value(self, value):
