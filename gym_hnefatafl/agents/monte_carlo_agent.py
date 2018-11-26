@@ -4,6 +4,7 @@ from gym_hnefatafl.envs import HnefataflEnv
 from gym_hnefatafl.envs.board import Outcome, Player
 
 MONTE_CARLO_ITERATIONS = 1000
+MIN_NUM_VISITS_INTERNAL = 5  # may have to be much higher go uses 9*9
 
 #################################################################################################################
 #################################################################################################################
@@ -24,11 +25,14 @@ class Tree(object):
     # player: the player that this agent represents
     def __init__(self, board, player):
         self.root = Node(player)
-        self.state = board
+        self.board = board
+        self.num_simulations = 0
+        self.player = player
 
     # simulates an entire game
     def simulate_game(self):
         # init
+        self.num_simulations += 1
         # game history saves all actions done during this simulation
         game_history = []
         board_copy = copy.deepcopy(self.board)
@@ -36,32 +40,37 @@ class Tree(object):
 
         # simulate actions within the tree until we are no longer at a stored node
         while board_copy.outcome == Outcome.ongoing:
+            self.player = current_node.player
             current_node, action = current_node.simulate_action(board_copy)
             game_history.append(action)
             if current_node is None:
+                self.player = other_player(self.player)
                 break
 
-        # continue on with external nodes
+        # finish game
         while board_copy.outcome == Outcome.ongoing:
-            game_history.append(self.__choose_and_simulate_action__())
+            game_history.append(self.__choose_and_simulate_action__(board_copy))
+            self.player = other_player(self.player)
 
         # calculate game value
         game_value = OUTCOME_BLACK_VALUE if board_copy.outcome == Outcome.black \
             else OUTCOME_WHITE_VALUE if board_copy.outcome == Outcome.white \
             else OUTCOME_DRAW_VALUE
 
-        # back value up
-        # TODO: this part is probably not correct and needs to be changed to the algorithm on page 7 of the paper
         current_node = self.root
         for action in game_history:
             current_node.update_value(game_value)
+            current_node.update_mean_variance(self.num_simulations, board_copy)
+            current_node.update_action_probabilities()
             current_node = current_node.children[action]
             if current_node is None:
                 break
 
     # chooses an action and simulates it. Then returns the action
-    def __choose_and_simulate_action__(self):
-        raise NotImplementedError
+    def __choose_and_simulate_action__(self, board):
+        actions = board.get_valid_actions(self.player)
+        action = np.random.choice(actions)
+        board.do_action(action, self.player)
 
     # returns the best action found
     def get_best_action(self):
@@ -75,13 +84,17 @@ class Node(object):
         self.number_of_visits = 0
         self.sum_of_values = 0
         self.sum_of_squared_values = 0
+        self.mean = 0.0
+        self.variance = 0.0
         self.player = player
         self.is_internal = False
+        self.sorted_child_indices = []
+        self.action_probabilities = []
 
     # chooses and simulates an action
     def choose_and_simulate_action(self, board):
-        # TODO: self.is_internal needs to be set after a certain amount of visits or according to another heuristic
         self.number_of_visits += 1
+        self.is_internal = self.number_of_visits > MIN_NUM_VISITS_INTERNAL
         action = self.__choose_action__(board)
         board.do_action(action, self.player)
         # create child node if this node has already been visited
@@ -95,48 +108,82 @@ class Node(object):
     # chooses an action
     def __choose_action__(self, board):
         actions = board.get_valid_actions(self.player)
-        mus = np.empty(len(actions))
-        sigmas_squared = np.empty(len(actions))
-        if self.is_internal:
-            # TODO: implement heuristic or just do the else part if no time left or so
-            raise NotImplementedError
-        else:
-            for i, action in enumerate(actions):
-                ################################################################################################
-                # parameter that somehow needs to reflect "points on the board", i. e. empty intersections in go
-                # could possibly be chosen as "number of pieces on the board"
-                p = 0
-                ################################################################################################
-                if action in self.children:
-                    child = self.children[action]
-                    mu = child.sum_of_values / child.number_of_visits
-                    sigma_squared = (child.sum_of_squared_values - child.number_of_visits*mu*mu + 4*p*p) \
-                                / (child.number_of_visits + 1)
-                else:
-                    mu = 0
-                    sigma_squared = - mu*mu + 4*p*p
-                mus[i] = mu
-                sigmas_squared[i] = sigma_squared
-        max_index = np.argmax(mus)
-        mu_max = mus[max_index]
-        sigma_of_mu_max = sigmas_squared[max_index]
-        ########################################################################################################
-        # parameter that somehow needs to reflect "urgency of a move". mustn't be zero
-        # could possibly be chosen as "pieces captured" along with the scaling factor described in the paper
-        e = np.ones(len(actions))
-        ########################################################################################################
-        probabilities = np.exp(-2.4 * (mu_max - mus) / np.math.sqrt(2*(sigma_of_mu_max+sigmas_squared))) + e
-        prob_sum = np.sum(probabilities)
-        probabilities /= prob_sum
-
-        random_action = np.random.choice(actions, p=probabilities)
-        return random_action
+        # mus = np.empty(len(actions))
+        # sigmas_squared = np.empty(len(actions))
+        if self.is_internal:  # do random move based on probability distribution
+            return np.random.choice(self.children,  p=self.action_probabilities)
+        else:  # do random move for external nodes
+            return np.random.choice(actions)
+        # if self.is_internal:
+        #
+        # else:
+        #     for i, action in enumerate(actions):
+        #         ################################################################################################
+        #         # parameter that somehow needs to reflect "points on the board", i. e. empty intersections in go
+        #         # could possibly be chosen as "number of pieces on the board"
+        #         p = 0
+        #         ################################################################################################
+        #         if action in self.children:
+        #             child = self.children[action]
+        #             mu = child.sum_of_values / child.number_of_visits
+        #             sigma_squared = (child.sum_of_squared_values - child.number_of_visits*mu*mu + 4*p*p) \
+        #                         / (child.number_of_visits + 1)
+        #         else:
+        #             mu = 0
+        #             sigma_squared = - mu*mu + 4*p*p
+        #         mus[i] = mu
+        #         sigmas_squared[i] = sigma_squared
+        # max_index = np.argmax(mus)
+        # mu_max = mus[max_index]
+        # sigma_of_mu_max = sigmas_squared[max_index]
+        # ########################################################################################################
+        # # parameter that somehow needs to reflect "urgency of a move". mustn't be zero
+        # # could possibly be chosen as "pieces captured" along with the scaling factor described in the paper
+        # e = np.ones(len(actions))
+        # ########################################################################################################
+        # probabilities = np.exp(-2.4 * (mu_max - mus) / np.math.sqrt(2*(sigma_of_mu_max+sigmas_squared))) + e
+        # prob_sum = np.sum(probabilities)
+        # probabilities /= prob_sum
+        #
+        # random_action = np.random.choice(actions, p=probabilities)
+        # return random_action
 
     # updates the internal values
     def update_value(self, value):
         self.sum_of_values += value
         self.sum_of_squared_values += value * value
 
+    def update_mean_variance(self, num_simulations, board):
+        ################################################################################################
+        # parameter that somehow needs to reflect "points on the board", i. e. empty intersections in go
+        # could possibly be chosen as "number of pieces on the board"
+        p = 11*11 - (board.white_pieces + board.black_pieces)
+        ################################################################################################
+        self.mean = self.sum_of_values/num_simulations
+        self.variance = (self.sum_of_squared_values - self.number_of_visits*self.mean*self.mean + 4*p*p) \
+                        / (num_simulations + 1)
+
+    def update_action_probabilities(self):
+        mean = (c.mean for c in self.children.values())
+        sigma = (c.variance for c in self.children.values())
+        # sort actions/children by mean value of children
+        self.sorted_child_indices = np.argsort(mean)
+        mean0 = mean[self.sorted_child_indices[0]]
+        sigma0 = sigma[self.sorted_child_indices[0]]
+        # compute probabilities for each move
+        self.action_probabilities = [self.probability(mean0, sigma0, self.sorted_child_indices[i]) \
+                                     for i in range(0,len(mean))]
+
+    def probability(self, m0, s0, i):
+        ########################################################################################################
+        # parameter that somehow needs to reflect "urgency of a move". mustn't be zero
+        # could possibly be chosen as "pieces captured" along with the scaling factor described in the paper
+        a = 1
+        eps = (0.1 + pow(2, -i) + a)/len(self.children)
+        ########################################################################################################
+        mi = self.children[i][1].mean
+        si = self.children[i][1].variance
+        return np.exp(-2.4*(m0-mi)/np.sqrt(2*(s0*s0+si*si))) + eps
 
 # returns the opponent of the given player
 def other_player(player):
