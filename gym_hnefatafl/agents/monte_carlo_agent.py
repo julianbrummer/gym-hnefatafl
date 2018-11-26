@@ -1,9 +1,11 @@
 import copy
+import random
+
 import numpy as np
 from gym_hnefatafl.envs import HnefataflEnv
 from gym_hnefatafl.envs.board import Outcome, Player
 
-MONTE_CARLO_ITERATIONS = 1000
+MONTE_CARLO_ITERATIONS = 10
 MIN_NUM_VISITS_INTERNAL = 5  # may have to be much higher go uses 9*9
 
 #################################################################################################################
@@ -41,7 +43,7 @@ class Tree(object):
         # simulate actions within the tree until we are no longer at a stored node
         while board_copy.outcome == Outcome.ongoing:
             self.player = current_node.player
-            current_node, action = current_node.simulate_action(board_copy)
+            current_node, action = current_node.choose_and_simulate_action(board_copy)
             game_history.append(action)
             if current_node is None:
                 self.player = other_player(self.player)
@@ -62,9 +64,9 @@ class Tree(object):
             current_node.update_value(game_value)
             current_node.update_mean_variance(self.num_simulations, board_copy)
             current_node.update_action_probabilities()
-            current_node = current_node.children[action]
-            if current_node is None:
+            if action not in current_node.children:
                 break
+            current_node = current_node.children[action]
 
         # # back value up
         # # TODO: this part is now implemented according to the paper however not yet invoked in the rest of the code
@@ -95,12 +97,19 @@ class Tree(object):
     # chooses an action and simulates it. Then returns the action
     def __choose_and_simulate_action__(self, board):
         actions = board.get_valid_actions(self.player)
-        action = np.random.choice(actions)
+        action = random.choice(actions)
         board.do_action(action, self.player)
 
     # returns the best action found
     def get_best_action(self):
-        raise NotImplementedError
+        max_mu = -np.math.inf
+        best_action = None
+        for action in self.root.children:
+            if max_mu < self.root.children[action].mean:
+                max_mu = self.root.children[action].mean
+                best_action = action
+        return best_action
+        # raise NotImplementedError
 
 
 # represents a node within the monte carlo search tree (that is actually stored in memory -> see the paper)
@@ -141,9 +150,12 @@ class Node(object):
         # mus = np.empty(len(actions))
         # sigmas_squared = np.empty(len(actions))
         if self.is_internal:  # do random move based on probability distribution
-            return np.random.choice(self.children,  p=self.action_probabilities)
+            action_index = np.random.choice(len(self.children),  p=self.action_probabilities)
+            index = self.sorted_child_indices[action_index]
+            sorted_actions = [c for c in self.children.keys()]
+            return sorted_actions[index]
         else:  # do random move for external nodes
-            return np.random.choice(actions)
+            return random.choice(actions)
         # if self.is_internal:
         #
         # else:
@@ -195,25 +207,31 @@ class Node(object):
                         / (num_simulations + 1)
 
     def update_action_probabilities(self):
-        mean = (c.mean for c in self.children.values())
-        sigma = (c.variance for c in self.children.values())
-        # sort actions/children by mean value of children
-        self.sorted_child_indices = np.argsort(mean)
-        mean0 = mean[self.sorted_child_indices[0]]
-        sigma0 = sigma[self.sorted_child_indices[0]]
-        # compute probabilities for each move
-        self.action_probabilities = [self.probability(mean0, sigma0, self.sorted_child_indices[i]) \
-                                     for i in range(0,len(mean))]
+        if len(self.children) > 0:
+            mean = [c.mean for c in self.children.values()]
+            sigma = [c.variance for c in self.children.values()]
+            # sort actions/children by mean value of children
+            self.sorted_child_indices = np.argsort(mean)
+            mean0 = mean[self.sorted_child_indices[0]]
+            sigma0 = sigma[self.sorted_child_indices[0]]
+            # compute probabilities for each move
+            self.action_probabilities = np.asarray([self.probability(mean0, sigma0, self.sorted_child_indices[i], mean, sigma) \
+                                         for i in range(0,len(mean))])
+            self.action_probabilities /= np.sum(self.action_probabilities)
 
-    def probability(self, m0, s0, i):
+
+    def probability(self, m0, s0, i, mean, sigma):
         ########################################################################################################
         # parameter that somehow needs to reflect "urgency of a move". mustn't be zero
         # could possibly be chosen as "pieces captured" along with the scaling factor described in the paper
         a = 1
-        eps = (0.1 + pow(2, -i) + a)/len(self.children)
+        eps = (0.1 + 1/pow(2, i) + a)/len(self.children)
         ########################################################################################################
-        mi = self.children[i][1].mean
-        si = self.children[i][1].variance
+        #print(i)
+        #print(self.children)
+        #print(self.children.values()[i])
+        mi = mean[i]
+        si = sigma[i]
         return np.exp(-2.4*(m0-mi)/np.sqrt(2*(s0*s0+si*si))) + eps
 
 # returns the opponent of the given player
@@ -222,12 +240,15 @@ def other_player(player):
 
 
 class MonteCarloAgent(object):
+    def __init__(self, player):
+        self.player = player
+
     # chooses a random move and returns it
     # in order for games to finish in a reasonable amount of time,
     # the agent always sends the king to one of the corners if able
     # (this causes white to win basically all the time)
     def make_move(self, env: HnefataflEnv) -> ((int, int), (int, int)):
-        tree = Tree(env.get_board())
+        tree = Tree(env.get_board(), self.player)
         for i in range(MONTE_CARLO_ITERATIONS):
             tree.simulate_game()
         return tree.get_best_action()
