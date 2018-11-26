@@ -51,13 +51,35 @@ class Tree(object):
             else OUTCOME_DRAW_VALUE
 
         # back value up
-        # TODO: this part is probably not correct and needs to be changed to the algorithm on page 7 of the paper
+        # TODO: this part is now implemented according to the paper however not yet invoked in the rest of the code
+        width = 11
+        height = 11
+        value = 0
         current_node = self.root
-        for action in game_history:
-            current_node.update_value(game_value)
-            current_node = current_node.children[action]
-            if current_node is None:
-                break
+        meanValue = 2 * width * height
+        if self.simulations>16 * width * height:
+            meanValue *= self.simulations / (16 * width * height)
+        value = meanValue
+        if self.tGames[1] and  self.TGames[0]:
+            tAveragedValue=[2]
+            for i in tAveragedValue:
+                tAveragedValue[i]=(self.tGames[i] * self.tValues[i] + meanValue * value) / (self.tGames[i] + meanValue)
+            if self.tGames[1]> self.tGames[0]:
+                if self.tValues[1]> value:
+                    value=tAveragedValue[1]
+                elif self.tValues[0]<value:
+                    value=tAveragedValue[0]
+            else:
+                value=tAveragedValue[0]
+        else:
+            value=self.tValues[0]
+        return value
+
+        #for action in game_history:
+        #    current_node.update_value(game_value)
+        #    current_node = current_node.children[action]
+        #    if current_node is None:
+        #        break
 
     # chooses an action and simulates it. Then returns the action
     def __choose_and_simulate_action__(self):
@@ -77,6 +99,9 @@ class Node(object):
         self.sum_of_squared_values = 0
         self.player = player
         self.is_internal = False
+        self.tValue = []
+        self.tGames = []
+        self.simulations=0
 
     # chooses and simulates an action
     def choose_and_simulate_action(self, board):
@@ -105,7 +130,8 @@ class Node(object):
                 ################################################################################################
                 # parameter that somehow needs to reflect "points on the board", i. e. empty intersections in go
                 # could possibly be chosen as "number of pieces on the board"
-                p = 0
+                # i'd choose it as number of fields on the board- number of pieces on the board
+                p = 11*11 - (board.white_pieces + board.black_pieces)
                 ################################################################################################
                 if action in self.children:
                     child = self.children[action]
