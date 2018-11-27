@@ -288,10 +288,13 @@ class HnefataflBoard:
 
         # check capture king
         king_x, king_y = self.king_position
-        if self.board[king_x + 1, king_y] == TileState.black | TileState.throne \
-                and self.board[king_x - 1, king_y] == TileState.black | TileState.throne \
-                and self.board[king_x, king_y + 1] == TileState.black | TileState.throne \
-                and self.board[king_x, king_y - 1] == TileState.black | TileState.throne:
+        if (self.board[king_x + 1, king_y] == TileState.black or self.board[king_x + 1, king_y] == TileState.throne) \
+                and (self.board[king_x - 1, king_y] == TileState.black
+                     or self.board[king_x - 1, king_y] == TileState.throne) \
+                and (self.board[king_x, king_y + 1] == TileState.black
+                     or self.board[king_x, king_y + 1] == TileState.throne) \
+                and (self.board[king_x, king_y - 1] == TileState.black
+                     or self.board[king_x, king_y - 1] == TileState.throne):
             self.outcome = Outcome.black
             captured_pieces.append((king_x, king_y))
             if self.print_to_console:

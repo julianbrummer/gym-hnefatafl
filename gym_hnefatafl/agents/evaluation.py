@@ -33,6 +33,12 @@ def evaluate(board, player):
             + board_presence_rating(board)\
 
 
+
+# does only the stuff that can be calculated quickly
+def quick_evaluate(board, player):
+    return superiority_rating(board) + king_in_trouble_rating(board)
+
+
 # does a material comparison and returns a number based on that
 def superiority_rating(board):
     return SUPERIORITY_WEIGHT*(2*board.white_pieces - board.black_pieces)

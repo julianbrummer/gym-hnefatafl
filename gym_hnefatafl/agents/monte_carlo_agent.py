@@ -1,24 +1,23 @@
+import cProfile
 import copy
+import math
 import random
 
 import numpy as np
+
+from gym_hnefatafl.agents.evaluation import evaluate, quick_evaluate
 from gym_hnefatafl.envs import HnefataflEnv
 from gym_hnefatafl.envs.board import Outcome, Player
 
-MONTE_CARLO_ITERATIONS = 10
-MIN_NUM_VISITS_INTERNAL = 5  # may have to be much higher go uses 9*9
+QUICK_EVALUATION = False    # whether the nodes calls evaluate or quick_evaluate
 
-#################################################################################################################
-#################################################################################################################
-#################################################################################################################
+MONTE_CARLO_ITERATIONS = 1000
+MIN_NUM_VISITS_INTERNAL = 5  # may have to be much higher go uses 9*9
+DEFAULT_SIGMA_SQUARED = 1
+
 OUTCOME_BLACK_VALUE = -1
 OUTCOME_WHITE_VALUE = 1
 OUTCOME_DRAW_VALUE = 0
-
-# An den Werten hier muss bestimmt noch was geändert werden, weil auch die Quadrate davon gespeichert werden!!!
-#################################################################################################################
-#################################################################################################################
-#################################################################################################################
 
 
 # represents a monte carlo search tree
@@ -26,75 +25,44 @@ class Tree(object):
     # board: the current board
     # player: the player that this agent represents
     def __init__(self, board, player):
-        self.root = Node(player)
+        self.root = Node(player, None)
         self.board = board
-        self.num_simulations = 0
         self.player = player
 
     # simulates an entire game
     def simulate_game(self):
-        # init
-        self.num_simulations += 1
-        # game history saves all actions done during this simulation
-        game_history = []
-        board_copy = copy.deepcopy(self.board)
+        simulation_board_copy = copy.deepcopy(self.board)
         current_node = self.root
 
         # simulate actions within the tree until we are no longer at a stored node
-        while board_copy.outcome == Outcome.ongoing:
+        while simulation_board_copy.outcome == Outcome.ongoing:
             self.player = current_node.player
-            current_node, action = current_node.choose_and_simulate_action(board_copy)
-            game_history.append(action)
-            if current_node is None:
+            next_node, action = current_node.choose_and_simulate_action(simulation_board_copy)
+            if next_node is None:
                 self.player = other_player(self.player)
                 break
+            else:
+                current_node = next_node
+
+        back_up_board_copy = copy.deepcopy(simulation_board_copy)
 
         # finish game
-        while board_copy.outcome == Outcome.ongoing:
-            game_history.append(self.__choose_and_simulate_action__(board_copy))
+        while simulation_board_copy.outcome == Outcome.ongoing:
+            self.__choose_and_simulate_action__(simulation_board_copy)
             self.player = other_player(self.player)
 
         # calculate game value
-        game_value = OUTCOME_BLACK_VALUE if board_copy.outcome == Outcome.black \
-            else OUTCOME_WHITE_VALUE if board_copy.outcome == Outcome.white \
+        game_value = OUTCOME_BLACK_VALUE if simulation_board_copy.outcome == Outcome.black \
+            else OUTCOME_WHITE_VALUE if simulation_board_copy.outcome == Outcome.white \
             else OUTCOME_DRAW_VALUE
 
-        current_node = self.root
-        for action in game_history:
-            current_node.update_value(game_value)
-            current_node.update_mean_variance(self.num_simulations, board_copy)
-            current_node.update_action_probabilities()
-            if action not in current_node.children:
-                break
-            current_node = current_node.children[action]
+        # back up value
+        while current_node is not None:
+            back_up_board_copy.undo_last_action()
+            current_node.back_up(game_value, back_up_board_copy)
+            current_node = current_node.parent
 
-        # # back value up
-        # # TODO: this part is now implemented according to the paper however not yet invoked in the rest of the code
-        # width = 11
-        # height = 11
-        # value = 0
-        # current_node = self.root
-        # meanValue = 2 * width * height
-        # if self.simulations>16 * width * height:
-        #     meanValue *= self.simulations / (16 * width * height)
-        # value = meanValue
-        # if self.tGames[1] and  self.TGames[0]:
-        #     tAveragedValue=[2]
-        #     for i in tAveragedValue:
-        #         tAveragedValue[i]=(self.tGames[i] * self.tValues[i] + meanValue * value) / (self.tGames[i] + meanValue)
-        #     if self.tGames[1]> self.tGames[0]:
-        #         if self.tValues[1]> value:
-        #             value=tAveragedValue[1]
-        #         elif self.tValues[0]<value:
-        #             value=tAveragedValue[0]
-        #     else:
-        #         value=tAveragedValue[0]
-        # else:
-        #     value=self.tValues[0]
-        # return value
-
-
-    # chooses an action and simulates it. Then returns the action
+    # chooses an action and simulates it.
     def __choose_and_simulate_action__(self, board):
         actions = board.get_valid_actions(self.player)
         action = random.choice(actions)
@@ -102,33 +70,38 @@ class Tree(object):
 
     # returns the best action found
     def get_best_action(self):
-        max_mu = -np.math.inf
         best_action = None
-        for action in self.root.children:
-            if max_mu < self.root.children[action].mean:
-                max_mu = self.root.children[action].mean
-                best_action = action
+        if self.root.player == Player.white:
+            best_mu = -math.inf
+            for child, action in self.root.children_with_actions:
+                if child.mean > best_mu:
+                    best_mu = child.mean
+                    best_action = action
+        else:
+            best_mu = math.inf
+            for child, action in self.root.children_with_actions:
+                if child.mean < best_mu:
+                    best_mu = child.mean
+                    best_action = action
         return best_action
-        # raise NotImplementedError
 
 
 # represents a node within the monte carlo search tree (that is actually stored in memory -> see the paper)
 class Node(object):
-    def __init__(self, player):
-        self.children = {}
+    def __init__(self, player, parent_node):
+        self.parent = parent_node
+        self.children_with_actions = []  # list of (children, action) pairs
+        self.action_to_children_dict = {}
         self.number_of_visits = 0
         self.sum_of_values = 0
         self.sum_of_squared_values = 0
-        self.mean = 0.0
+
+        # sign of this needs to return something meaningful, so instead of 0 this is set to machine epsilon
+        self.mean = np.finfo(float).eps if player == Player.white else -np.finfo(float).eps
+
         self.variance = 0.0
         self.player = player
         self.is_internal = False
-        self.sorted_child_indices = []
-        self.action_probabilities = []
-
-        # self.tValue = []
-        # self.tGames = []
-        # self.simulations=0
 
     # chooses and simulates an action
     def choose_and_simulate_action(self, board):
@@ -136,103 +109,97 @@ class Node(object):
         self.is_internal = self.number_of_visits > MIN_NUM_VISITS_INTERNAL
         action = self.__choose_action__(board)
         board.do_action(action, self.player)
-        # create child node if this node has already been visited
-        if self.number_of_visits > 1 and action not in self.children:
-            child_node = Node(other_player(self.player))
-            self.children[action] = child_node
-            return child_node, action
+
+        # If this node has already been visited, either create a child node or return an existing one.
+        # Otherwise return None
+        if self.number_of_visits > 1:
+            if action not in self.action_to_children_dict.keys():
+                child_node = Node(other_player(self.player), self)
+                self.children_with_actions.append((child_node, action))
+                self.action_to_children_dict[action] = child_node
+                return child_node, action
+            else:
+                return self.action_to_children_dict[action], action
         else:
             return None, action
 
     # chooses an action
     def __choose_action__(self, board):
         actions = board.get_valid_actions(self.player)
-        # mus = np.empty(len(actions))
-        # sigmas_squared = np.empty(len(actions))
-        if self.is_internal:  # do random move based on probability distribution
-            action_index = np.random.choice(len(self.children),  p=self.action_probabilities)
-            index = self.sorted_child_indices[action_index]
-            sorted_actions = [c for c in self.children.keys()]
-            return sorted_actions[index]
-        else:  # do random move for external nodes
-            return random.choice(actions)
-        # if self.is_internal:
-        #
-        # else:
-        #     for i, action in enumerate(actions):
-        #         ################################################################################################
-        #         # parameter that somehow needs to reflect "points on the board", i. e. empty intersections in go
-        #         # could possibly be chosen as "number of pieces on the board"
-        #         p = 0
-        #         ################################################################################################
-        #         if action in self.children:
-        #             child = self.children[action]
-        #             mu = child.sum_of_values / child.number_of_visits
-        #             sigma_squared = (child.sum_of_squared_values - child.number_of_visits*mu*mu + 4*p*p) \
-        #                         / (child.number_of_visits + 1)
-        #         else:
-        #             mu = 0
-        #             sigma_squared = - mu*mu + 4*p*p
-        #         mus[i] = mu
-        #         sigmas_squared[i] = sigma_squared
-        # max_index = np.argmax(mus)
-        # mu_max = mus[max_index]
-        # sigma_of_mu_max = sigmas_squared[max_index]
-        # ########################################################################################################
-        # # parameter that somehow needs to reflect "urgency of a move". mustn't be zero
-        # # could possibly be chosen as "pieces captured" along with the scaling factor described in the paper
-        # e = np.ones(len(actions))
-        # ########################################################################################################
-        # probabilities = np.exp(-2.4 * (mu_max - mus) / np.math.sqrt(2*(sigma_of_mu_max+sigmas_squared))) + e
-        # prob_sum = np.sum(probabilities)
-        # probabilities /= prob_sum
-        #
-        # random_action = np.random.choice(actions, p=probabilities)
-        # return random_action
+        probabilities = self.get_action_probabilities(actions, board)
 
+        # Nach einer Stunde googeln herausgefunden, dass numpy nicht in der Lage ist,
+        # ein Array aus Tupeln zu machen und man stattdessen diesen Quatsch machen muss.
+        actions_array = np.empty(len(actions), dtype=object)
+        actions_array[:] = actions
 
-    # updates the internal values
-    def update_value(self, value):
+        action = np.random.choice(actions_array, p=probabilities)
+        return action
+
+    # returns the probabilities for each action
+    # actions: the possible actions
+    # board: the current board
+    def get_action_probabilities(self, actions, board):
+        mus = np.empty(len(actions))
+        sigmas_squared = np.empty(len(actions))
+        for i, action in enumerate(actions):
+            if action in self.action_to_children_dict.keys():
+                child = self.action_to_children_dict[action]
+                mus[i] = child.mean
+                sigmas_squared[i] = child.variance
+            else:
+                board.do_action(action, self.player)
+                evaluation = quick_evaluate(board, self.player) if QUICK_EVALUATION else evaluate(board, self.player)
+                mus[i] = 1 if evaluation == math.inf else -1 if evaluation == -math.inf else evaluation / len(
+                    actions)
+                board.undo_last_action()
+                sigmas_squared[i] = DEFAULT_SIGMA_SQUARED
+
+        mu_0_index = np.argmax(mus)
+        mu_0 = mus[mu_0_index]
+        sigma_0_squared = sigmas_squared[mu_0_index]
+
+        # (returns the indices that would sort the array in ascending order). Quicksort is specified so that
+        # it is NOT stable because we don't want to see the same behaviour in every game
+        sorted_indices = np.argsort(mus, kind='quicksort')
+
+        # cap big values so that their powers don't explode. (when overflow happens,
+        # the value becomes 0 which results in infinite probabilities)
+        sorted_indices[sorted_indices < len(actions) - 20] = len(actions) - 20
+
+        ########################################################################################################
+        # parameter that somehow needs to reflect "urgency of a move". mustn't be zero
+        # could possibly be chosen as "pieces captured"
+        a = 1
+        eps = (0.1 + 1 / np.power(2, len(actions) - 1 - sorted_indices) + a) / len(actions)
+        ########################################################################################################
+
+        probabilities = np.exp(-2.4 * (mu_0 - mus) / np.sqrt(2 * (sigma_0_squared + sigmas_squared))) + eps
+        probabilities /= np.sum(probabilities)
+        return probabilities
+
+    def back_up(self, value, board):
         self.sum_of_values += value
         self.sum_of_squared_values += value * value
+        self.update_mean_variance(board)
 
-    def update_mean_variance(self, num_simulations, board):
+    def update_mean_variance(self, board):
         ################################################################################################
         # parameter that somehow needs to reflect "points on the board", i. e. empty intersections in go
         # could possibly be chosen as "number of pieces on the board"
-        p = 11*11 - (board.white_pieces + board.black_pieces)
+        p = 11 * 11 * (board.white_pieces + board.black_pieces)
         ################################################################################################
-        self.mean = self.sum_of_values/num_simulations
+        if self.parent is None:
+            if self.player == Player.white:
+                sign = +1
+            else:
+                sign = -1
+            self.mean = self.sum_of_values/self.number_of_visits * sign
+        else:
+            self.mean = self.sum_of_values/self.number_of_visits * -np.sign(self.parent.mean)
         self.variance = (self.sum_of_squared_values - self.number_of_visits*self.mean*self.mean + 4*p*p) \
-                        / (num_simulations + 1)
+                        / (self.number_of_visits + 1)
 
-    def update_action_probabilities(self):
-        if len(self.children) > 0:
-            mean = [c.mean for c in self.children.values()]
-            sigma = [c.variance for c in self.children.values()]
-            # sort actions/children by mean value of children
-            self.sorted_child_indices = np.argsort(mean)
-            mean0 = mean[self.sorted_child_indices[0]]
-            sigma0 = sigma[self.sorted_child_indices[0]]
-            # compute probabilities for each move
-            self.action_probabilities = np.asarray([self.probability(mean0, sigma0, self.sorted_child_indices[i], mean, sigma) \
-                                         for i in range(0,len(mean))])
-            self.action_probabilities /= np.sum(self.action_probabilities)
-
-
-    def probability(self, m0, s0, i, mean, sigma):
-        ########################################################################################################
-        # parameter that somehow needs to reflect "urgency of a move". mustn't be zero
-        # could possibly be chosen as "pieces captured" along with the scaling factor described in the paper
-        a = 1
-        eps = (0.1 + 1/pow(2, i) + a)/len(self.children)
-        ########################################################################################################
-        #print(i)
-        #print(self.children)
-        #print(self.children.values()[i])
-        mi = mean[i]
-        si = sigma[i]
-        return np.exp(-2.4*(m0-mi)/np.sqrt(2*(s0*s0+si*si))) + eps
 
 # returns the opponent of the given player
 def other_player(player):
@@ -248,10 +215,17 @@ class MonteCarloAgent(object):
     # the agent always sends the king to one of the corners if able
     # (this causes white to win basically all the time)
     def make_move(self, env: HnefataflEnv) -> ((int, int), (int, int)):
+
+        prof = cProfile.Profile()
+        prof.enable()
         tree = Tree(env.get_board(), self.player)
         for i in range(MONTE_CARLO_ITERATIONS):
             tree.simulate_game()
-        return tree.get_best_action()
+        best_action = tree.get_best_action()
+        prof.disable()
+        prof.print_stats(sort=2)
+
+        return best_action
 
     # does nothing in this agent, but is here because other agents need it
     def give_reward(self, reward):
