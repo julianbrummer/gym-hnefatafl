@@ -38,9 +38,9 @@ class HnefataflBoard:
 
     def __init__(self):
         # empty
-        self.board = np.zeros((13, 13))         # TileStates
-        self.move_board = np.zeros((13, 13))    # TileMoveStates
-        self.player_board = np.zeros((13, 13))  # Players
+        self.board = np.zeros((13, 13), dtype=np.int32)         # TileStates
+        self.move_board = np.zeros((13, 13), dtype=np.int32)    # TileMoveStates
+        self.player_board = np.zeros((13, 13), dtype=np.int32)  # Players
 
         self.king_position = (6, 6)
 
@@ -65,6 +65,8 @@ class HnefataflBoard:
         self.print_to_console = True
 
         # for reverting actions
+        self.board_stack = []
+        self.king_position_stack = []
         self.action_stack = []
         self.capture_stack = []
         self.turns_without_capture_count_stack = []
@@ -74,9 +76,9 @@ class HnefataflBoard:
 
     def reset_board(self):
         # empty
-        self.board = np.zeros((13, 13))        # TileStates
-        self.move_board = np.zeros((13, 13))   # TileMoveStates
-        self.player_board = np.zeros((13, 13)) # Player
+        self.board = np.zeros((13, 13), dtype=np.int32)        # TileStates
+        self.move_board = np.zeros((13, 13), dtype=np.int32)   # TileMoveStates
+        self.player_board = np.zeros((13, 13), dtype=np.int32) # Player
 
         # black (four battalions)
         self.board[1, 4:9] = TileState.black
@@ -119,13 +121,14 @@ class HnefataflBoard:
     def update_board_states(self):
         # movable state for any player (borders, corners, and soldiers are blocking)
         # anything else is traversable
-        self.move_board = np.zeros((13, 13))
+        self.move_board = np.zeros((13, 13), dtype=np.int32)
         blocking_mask = (self.board == TileState.border) | (self.board == TileState.white) \
                         | (self.board == TileState.black) | (self.board == TileState.king)
+
         np.place(self.move_board, blocking_mask, TileMoveState.blocking)
 
         # player state
-        self.player_board = np.zeros((13, 13))
+        self.player_board = np.zeros((13, 13), dtype=np.int32)
         np.place(self.player_board, self.board == TileState.black, Player.black)
         np.place(self.player_board, (self.board == TileState.white) | (self.board == TileState.king), Player.white)
 
@@ -198,6 +201,10 @@ class HnefataflBoard:
             self.turns_without_capture_count_stack.append(self.turns_without_capture_count)
             self.turns_without_capture_count += 1
             self.action_stack.append((move, self.board[from_x, from_y]))
+            board_bytes = self.board.tobytes()
+            self.board_stack.append(board_bytes)
+            self.king_position_stack.append(self.king_position)
+
             if self.print_to_console:
                 print(str(player) + " moves a piece from " + str((from_x, from_y)) + " to " + str((to_x, to_y)))
 
@@ -208,7 +215,6 @@ class HnefataflBoard:
                     self.outcome = Outcome.white
                     if self.print_to_console:
                         print("The king escapes to corner " + str((to_x, to_y)) + ". White wins!")
-                    return []
 
             # update the board itself and capture pieces if applicable
             self.board[to_x, to_y] = self.board[from_x, from_y]
@@ -217,15 +223,16 @@ class HnefataflBoard:
             self.capture_stack.append(captured_pieces)
 
             # update the board_states_dictionary so that we know whether the present board has occurred for the 3rd time
-            if self.board.tobytes() in self.board_states_dict:
-                self.board_states_dict[self.board.tobytes()] += 1
-                if self.board_states_dict[self.board.tobytes()] == 3:
+            board_bytes = self.board.tobytes()
+            if board_bytes in self.board_states_dict:
+                self.board_states_dict[board_bytes] += 1
+                if self.board_states_dict[board_bytes] == 3:
                     self.outcome = Outcome.draw
                     if self.print_to_console:
                         print("The same board state has occurred three times. The game ends in a draw!")
-                    return []
             else:
-                self.board_states_dict[self.board.tobytes()] = 1
+                self.board_states_dict[board_bytes] = 1
+
 
             # check if draw conditions by turn count are met
             if self.turn_count == MAX_NUMBER_OF_TURNS and self.outcome == Outcome.ongoing:
@@ -312,37 +319,55 @@ class HnefataflBoard:
 
     # reverts the last action and returns the board state to the state before
     def undo_last_action(self):
-        if len(self.action_stack) > 0:
-            # update board_states_dict
+        if len(self.board_stack) > 0:
+
             if self.board_states_dict[self.board.tobytes()] == 1:
                 self.board_states_dict.pop(self.board.tobytes())
             else:
                 self.board_states_dict[self.board.tobytes()] -= 1
-
-            # revert the movement of the piece
-            (from_position, to_position), tile_state = self.action_stack.pop()
-            self.board[to_position] = TileState.empty
-            self.board[from_position] = tile_state
-            # update king_position if that action was the king being moved
-            if self.king_position == to_position:
-                self.king_position = from_position
-
-            # revert captures
-            captured_pieces = self.capture_stack.pop()
-            other_player_tile_state = TileState.white if tile_state == TileState.black else TileState.black
-            for position in captured_pieces:
-                self.board[position] = other_player_tile_state if self.king_position != position else TileState.king
-            if tile_state == TileState.black:
-                self.white_pieces += len(captured_pieces)
-            else:
-                self.black_pieces += len(captured_pieces)
-
+            self.board = np.frombuffer(self.board_stack.pop(), dtype=np.int32).reshape((13, 13))
+            self.board.setflags(write=1)
+            self.king_position = self.king_position_stack.pop()
+            self.turns_without_capture_count = self.turns_without_capture_count_stack.pop()
             self.outcome = Outcome.ongoing
             self.turn_count -= 1
-            self.turns_without_capture_count = self.turns_without_capture_count_stack.pop()
             self.update_board_states()
         else:
             raise Exception("undo_last_action() failed because there is no action left to revert.")
+        # if len(self.action_stack) > 0:
+        #     # update board_states_dict
+        #     if self.board.tobytes() not in self.board_states_dict:
+        #         print(self.board.tobytes())
+        #         print(self.board_states_dict)
+        #     if self.board_states_dict[self.board.tobytes()] == 1:
+        #         self.board_states_dict.pop(self.board.tobytes())
+        #     else:
+        #         self.board_states_dict[self.board.tobytes()] -= 1
+        #
+        #     # revert the movement of the piece
+        #     (from_position, to_position), tile_state = self.action_stack.pop()
+        #     self.board[to_position] = TileState.empty
+        #     self.board[from_position] = tile_state
+        #     # update king_position if that action was the king being moved
+        #     if self.king_position == to_position:
+        #         self.king_position = from_position
+        #
+        #     # revert captures
+        #     captured_pieces = self.capture_stack.pop()
+        #     other_player_tile_state = TileState.white if tile_state == TileState.black else TileState.black
+        #     for position in captured_pieces:
+        #         self.board[position] = other_player_tile_state if self.king_position != position else TileState.king
+        #     if tile_state == TileState.black:
+        #         self.white_pieces += len(captured_pieces)
+        #     else:
+        #         self.black_pieces += len(captured_pieces)
+        #
+        #     self.outcome = Outcome.ongoing
+        #     self.turn_count -= 1
+        #     self.turns_without_capture_count = self.turns_without_capture_count_stack.pop()
+        #     self.update_board_states()
+        # else:
+        #     raise Exception("undo_last_action() failed because there is no action left to revert.")
 
     def __str__(self):
         return str(self.board)

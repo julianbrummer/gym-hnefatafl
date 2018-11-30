@@ -9,9 +9,9 @@ from gym_hnefatafl.agents.evaluation import evaluate, quick_evaluate
 from gym_hnefatafl.envs import HnefataflEnv
 from gym_hnefatafl.envs.board import Outcome, Player
 
-QUICK_EVALUATION = False    # whether the nodes calls evaluate or quick_evaluate
+QUICK_EVALUATION = True    # whether the nodes calls evaluate or quick_evaluate
 
-MONTE_CARLO_ITERATIONS = 1000
+MONTE_CARLO_ITERATIONS = 10
 MIN_NUM_VISITS_INTERNAL = 5  # may have to be much higher go uses 9*9
 DEFAULT_SIGMA_SQUARED = 1
 
