@@ -12,6 +12,7 @@ from gym_hnefatafl.envs.board import Outcome, Player
 
 QUICK_EVALUATION = True     # whether the nodes calls evaluate or quick_evaluate
 USE_MINIMAX = True          # whether the algorithm uses the minimax algorithm to finish simulating a game
+PROFILE = False
 
 MONTE_CARLO_ITERATIONS = 100
 MIN_NUM_VISITS_INTERNAL = 5  # may have to be much higher go uses 9*9
@@ -65,7 +66,6 @@ class Tree(object):
             back_up_board_copy.undo_last_action()
             current_node.back_up(game_value, back_up_board_copy)
             current_node = current_node.parent
-        print("game simulated")
 
     # chooses an action and simulates it.
     def __choose_and_simulate_action__(self, board):
@@ -226,15 +226,18 @@ class MonteCarloAgent(object):
     # the agent always sends the king to one of the corners if able
     # (this causes white to win basically all the time)
     def make_move(self, env: HnefataflEnv) -> ((int, int), (int, int)):
-
-        prof = cProfile.Profile()
-        prof.enable()
+        if PROFILE:
+            prof = cProfile.Profile()
+            prof.enable()
         tree = Tree(env.get_board(), self.player)
         for i in range(MONTE_CARLO_ITERATIONS):
             tree.simulate_game()
+            if i % 10 == 9:
+                print(str(i + 1) + " games simulated")
         best_action = tree.get_best_action()
-        prof.disable()
-        prof.print_stats(sort=2)
+        if PROFILE:
+            prof.disable()
+            prof.print_stats(sort=2)
 
         return best_action
 
