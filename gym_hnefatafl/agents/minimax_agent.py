@@ -5,13 +5,17 @@ import random
 import cProfile
 from bisect import bisect_left
 
-from gym_hnefatafl.agents.evaluation import evaluate
+from gym_hnefatafl.agents.evaluation import evaluate, quick_evaluate, covered_angle_rating, ANGLE_INTERVALS_3, \
+    calculate_angle_intervals, king_centered_evaluation
 from gym_hnefatafl.envs import HnefataflEnv
 from gym_hnefatafl.envs.board import Player, HnefataflBoard, Outcome
 
-MINIMAX_SEARCH_DEPTH = 3
+MINIMAX_SEARCH_DEPTH = 1
 PROFILE = False
-ALPHA_BETA = True
+ALPHA_BETA = False
+
+# 0: full evaluation, 1: quick evaluation, 2: king_centered_evaluation
+EVALUATION_METHOD = 1
 
 
 # returns the other player
@@ -42,24 +46,26 @@ def reordered_boards_after_action(board, turn_player):
 class MinimaxAgent(object):
     def __init__(self, player):
         self.player = player
+        if not ANGLE_INTERVALS_3:
+            calculate_angle_intervals()
 
     # chooses a move based on a minimax search with the __evaluate__ heuristic further below
-    def make_move(self, env: HnefataflEnv) -> ((int, int), (int, int)):
+    def make_move(self, board) -> ((int, int), (int, int)):
         if PROFILE:
             prof = cProfile.Profile()
             if ALPHA_BETA:
-                minimax_action, minimax_value = prof.runcall(self.alphabeta, env.get_board(), 0, -math.inf, math.inf,
+                minimax_action, minimax_value = prof.runcall(self.alphabeta, board, 0, -math.inf, math.inf,
                                                              self.player, )
             else:
-                minimax_action, minimax_value = prof.runcall(self.minimax_search, env.get_board(), self.player, 0, )
+                minimax_action, minimax_value = prof.runcall(self.minimax_search, board, self.player, 0, )
             prof.print_stats(sort=2)
         else:
             if ALPHA_BETA:
-                minimax_action, minimax_value = self.alphabeta(env.get_board(), 0, -math.inf, math.inf, self.player)
+                minimax_action, minimax_value = self.alphabeta(board, 0, -math.inf, math.inf, self.player)
             else:
-                minimax_action, minimax_value = self.minimax_search(env.get_board(), self.player, 0)
+                minimax_action, minimax_value = self.minimax_search(board, self.player, 0)
 
-        return random.choice(env.action_space) if minimax_action is None else minimax_action
+        return random.choice(board.get_valid_actions(self.player)) if minimax_action is None else minimax_action
 
     # does nothing yet
     def give_reward(self, reward):
@@ -71,7 +77,12 @@ class MinimaxAgent(object):
     def minimax_search(self, board: HnefataflBoard, turn_player, depth):
         # evaluate this node using the heuristic if the max depth is reached
         if depth == MINIMAX_SEARCH_DEPTH or board.outcome != Outcome.ongoing:
-            return None, evaluate(board, turn_player)
+            if EVALUATION_METHOD == 0:
+                return None, evaluate(board, turn_player)
+            elif EVALUATION_METHOD == 1:
+                return None, quick_evaluate(board, turn_player)
+            elif EVALUATION_METHOD == 2:
+                return None, king_centered_evaluation(board, turn_player)
 
         # initialize minimax value with either positive or negative infinity
         best_minimax_value_found = math.inf if turn_player == Player.black else -math.inf

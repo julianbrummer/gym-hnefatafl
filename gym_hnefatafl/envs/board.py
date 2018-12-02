@@ -157,7 +157,7 @@ class HnefataflBoard:
         is_king = self.board[x, y] == TileState.king
         valid_actions = []
         # first direction
-        for x_other in reversed(range(0, x)):
+        for x_other in reversed(range(1, x)):
             if self.move_board[x_other, y] == TileMoveState.traversable\
                     and (is_king or self.board[x_other, y] != TileState.corner):
                 if (not (x_other, y) == (6, 6)) or is_king:  # exclude throne if the piece is not the king
@@ -165,22 +165,25 @@ class HnefataflBoard:
             else:
                 break
         # second direction
-        for x_other in range(x + 1, 13):
-            if self.move_board[x_other, y] == 0 and (is_king or self.board[x_other, y] != TileState.corner):
+        for x_other in range(x + 1, 12):
+            if self.move_board[x_other, y] == TileMoveState.traversable \
+                    and (is_king or self.board[x_other, y] != TileState.corner):
                 if (not (x_other, y) == (6, 6)) or is_king:  # exclude throne if the piece is not the king
                     valid_actions.append(((x, y), (x_other, y)))
             else:
                 break
         # third direction
-        for y_other in reversed(range(0, y)):
-            if self.move_board[x, y_other] == 0 and (is_king or self.board[x, y_other] != TileState.corner):
+        for y_other in reversed(range(1, y)):
+            if self.move_board[x, y_other] == TileMoveState.traversable \
+                    and (is_king or self.board[x, y_other] != TileState.corner):
                 if (not (x, y_other) == (6, 6)) or is_king:  # exclude throne if the piece is not the king
                     valid_actions.append(((x, y), (x, y_other)))
             else:
                 break
         # forth direction
-        for y_other in range(y + 1, 13):
-            if self.move_board[x, y_other] == 0 and (is_king or self.board[x, y_other] != TileState.corner):
+        for y_other in range(y + 1, 12):
+            if self.move_board[x, y_other] == TileMoveState.traversable \
+                    and (is_king or self.board[x, y_other] != TileState.corner):
                 if (not (x, y_other) == (6, 6)) or is_king:  # exclude throne if the piece is not the king
                     valid_actions.append(((x, y), (x, y_other)))
             else:
@@ -320,7 +323,6 @@ class HnefataflBoard:
     # reverts the last action and returns the board state to the state before
     def undo_last_action(self):
         if len(self.board_stack) > 0:
-
             if self.board_states_dict[self.board.tobytes()] == 1:
                 self.board_states_dict.pop(self.board.tobytes())
             else:

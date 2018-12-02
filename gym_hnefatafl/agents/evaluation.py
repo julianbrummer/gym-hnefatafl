@@ -1,14 +1,18 @@
 import itertools
 import math
+import random
+
 import numpy as np
 from enum import IntEnum
 
-from gym_hnefatafl.envs.board import Outcome, TileState, Player
+from gym_hnefatafl.envs.board import Outcome, TileState, Player, TileMoveState
 
 BOARD_PRESENCE_WEIGHT = 4
 SUPERIORITY_WEIGHT = 5
 KING_IN_TROUBLE_WEIGHT = 10
-KING_TURNS_TO_CORNER_WEIGHT = 3
+KING_TURNS_TO_CORNER_WEIGHT = 6
+COVERED_ANGLE_WEIGHT = 1
+SAME_AXIS_AS_KING_WEIGHT = 1
 
 # board presence
 KING_BONUS_FACTOR = 2.5
@@ -19,6 +23,10 @@ KING_IN_TROUBLE_EXP_BASE = 1.4
 
 # king turns to corner
 KING_TURNS_TO_CORNER_EXP_BASE = 50
+
+# penalty for squares that are not on the same axis as the king
+# (must range from 0 to 1 with 1 being no penalty and 0 meaning not counted)
+SQUARE_OFF_AXIS_FACTOR = 0.5
 
 
 # evaluates the given board and returns a number based on its value
@@ -33,10 +41,21 @@ def evaluate(board, player):
             + board_presence_rating(board)\
 
 
-
 # does only the stuff that can be calculated quickly
 def quick_evaluate(board, player):
-    return superiority_rating(board) + king_in_trouble_rating(board)
+    return superiority_rating(board) + king_in_trouble_rating(board) + covered_angle_rating(board) \
+           + same_axis_as_king_rating(board)
+
+
+# currently tested, add stuff as you like, but don't make it too slow
+def king_centered_evaluation(board, player):
+    return random_jiggle() + covered_angle_rating(board) + same_axis_as_king_rating(board) + superiority_rating(board)\
+           + king_turns_to_corner(board)
+
+
+# adds a bit of randomness when the best actions evaluate to the same value
+def random_jiggle():
+    return random.random()*2**(-20)
 
 
 # does a material comparison and returns a number based on that
@@ -146,3 +165,145 @@ def king_turns_to_corner(board):
         this_list = next_list
         next_list = []
         current_step_count += 1
+
+
+# the relative squares and their evaluation order in a circle around the king with radius 3
+# these are sorted by the left ends (looking counter-clockwise) of the angle intervals in ascending order
+# in other words like this:
+ANGLE_CALCULATION_ORDER_3 = [
+    (3, 0),     (2, 0),     (3, 1),     (1, 0),     (2, 1),     (2, 2),     (1, 1),     (1, 2),     (1, 3),     # NE
+    (0, 3),     (0, 2),     (-1, 3),    (0, 1),     (-1, 2),    (-2, 2),    (-1, 1),    (-2, 1),    (-3, 1),    # NW
+    (-3, 0),    (-2, 0),    (-3, -1),   (-1, 0),    (-2, -1),   (-2, -2),   (-1, -1),   (-1, -2),   (-1, -3),   # SW
+    (0, -3),    (0, -2),    (1, -3),    (0, -1),    (1, -2),    (2, -2),    (1, -1),    (2, -1),    (3, -1)     # SE
+]
+
+# this intervals that the respective squares cover
+# method below populates this list
+ANGLE_INTERVALS_3 = []
+
+
+# does the calculation for the list above
+def calculate_angle_intervals():
+    for relative_x, relative_y in ANGLE_CALCULATION_ORDER_3:
+        if relative_x < 0:
+            if relative_y < 0:
+                right_angle = np.angle(complex(relative_x - .5 * SQUARE_OFF_AXIS_FACTOR, relative_y + .5 * SQUARE_OFF_AXIS_FACTOR))
+                left_angle = np.angle(complex(relative_x + .5 * SQUARE_OFF_AXIS_FACTOR, relative_y - .5 * SQUARE_OFF_AXIS_FACTOR))
+            elif relative_y == 0:
+                right_angle = np.angle(complex(relative_x + .5, relative_y + .5))
+                left_angle = np.angle(complex(relative_x + .5, relative_y - .5))
+            else:
+                right_angle = np.angle(complex(relative_x + .5 * SQUARE_OFF_AXIS_FACTOR, relative_y + .5 * SQUARE_OFF_AXIS_FACTOR))
+                left_angle = np.angle(complex(relative_x - .5 * SQUARE_OFF_AXIS_FACTOR, relative_y - .5 * SQUARE_OFF_AXIS_FACTOR))
+        elif relative_x == 0:
+            if relative_y < 0:
+                right_angle = np.angle(complex(relative_x - .5, relative_y + .5))
+                left_angle = np.angle(complex(relative_x + .5, relative_y + .5))
+            else:
+                right_angle = np.angle(complex(relative_x + .5, relative_y - .5))
+                left_angle = np.angle(complex(relative_x - .5, relative_y - .5))
+        else:
+            if relative_y < 0:
+                right_angle = np.angle(complex(relative_x - .5 * SQUARE_OFF_AXIS_FACTOR, relative_y - .5 * SQUARE_OFF_AXIS_FACTOR))
+                left_angle = np.angle(complex(relative_x + .5 * SQUARE_OFF_AXIS_FACTOR, relative_y + .5 * SQUARE_OFF_AXIS_FACTOR))
+            elif relative_y == 0:
+                right_angle = np.angle(complex(relative_x - .5, relative_y - .5))
+                left_angle = np.angle(complex(relative_x - .5, relative_y + .5))
+            else:
+                right_angle = np.angle(complex(relative_x + .5 * SQUARE_OFF_AXIS_FACTOR, relative_y - .5 * SQUARE_OFF_AXIS_FACTOR))
+                left_angle = np.angle(complex(relative_x - .5 * SQUARE_OFF_AXIS_FACTOR, relative_y + .5 * SQUARE_OFF_AXIS_FACTOR))
+        if right_angle < 0:
+            right_angle += 2 * math.pi
+        if left_angle < 0:
+            left_angle += 2 * math.pi
+        ANGLE_INTERVALS_3.append((right_angle, left_angle))
+
+
+# calculates the angle that the squares of all black pieces in a circle of radius 3 around the king cover
+# returns the negative of that scaled between 0 and -1
+def covered_angle_rating(board):
+    union = []
+    edge_pieces = []
+    king_x, king_y = board.king_position
+    for (relative_x, relative_y), (right, left) in zip(ANGLE_CALCULATION_ORDER_3, ANGLE_INTERVALS_3):
+        pos_x = king_x + relative_x
+        pos_y = king_y + relative_y
+        if 1 <= pos_x <= 11 and 1 <= pos_y <= 11:
+            if board.board[(pos_x, pos_y)] == TileState.black:
+                # split interval if it crosses over 0
+                if right > left:
+                    edge_pieces.append(right)
+                    right = 0
+                if not union:
+                    union.append((right, left))
+                else:
+                    # find the first interval that is not fully included in the current one
+                    first_subinterval_index = len(union) - 1
+                    while first_subinterval_index > 0 and union[first_subinterval_index - 1][0] > right:
+                        first_subinterval_index -= 1
+                    # delete all elements after the found index
+                    del union[first_subinterval_index + 1:]
+                    # if last interval and the current one are disjunct, append it. Else join them.
+                    if union[first_subinterval_index][1] <= right:
+                        union.append((right, left))
+                    else:
+                        union[first_subinterval_index] = (union[first_subinterval_index][0], left)
+
+    # do the same thing for the right pieces of the intervals where the angle has crossed over 0
+    left = 2 * math.pi
+    for right in edge_pieces:
+        if not union:
+            union.append((right, left))
+        else:
+            first_subinterval_index = len(union) - 1
+            while first_subinterval_index > 0 and union[first_subinterval_index - 1][0] > right:
+                first_subinterval_index -= 1
+            del union[first_subinterval_index + 1:]
+            if union[first_subinterval_index][1] <= right:
+                union.append((right, left))
+            else:
+                del union[first_subinterval_index + 1:]
+                union[first_subinterval_index] = (union[first_subinterval_index][0], left)
+
+    # calculate the covered angle
+    covered_angle = 0
+    for interval in union:
+        covered_angle += interval[1] - interval[0]
+    return -covered_angle * COVERED_ANGLE_WEIGHT / (2 * math.pi)
+
+
+# consider the distance from the king along the horizontal or vertical axis to a black
+# piece with no other piece in between. This function calculates the sum of reciprocals
+# of these distances in each of the four directions and returns the negative of that value
+# (scaled between 0 and -1)
+def same_axis_as_king_rating(board):
+    axis_sum = 0
+    king_x, king_y = board.king_position
+    for x_other in reversed(range(1, king_x)):
+        if board.move_board[x_other, king_y] == TileMoveState.traversable:
+            continue
+        elif board.board[x_other, king_y] == TileState.black:
+            axis_sum += 1/(king_x - x_other)
+        break
+    # second direction
+    for x_other in range(king_x + 1, 12):
+        if board.move_board[x_other, king_y] == TileMoveState.traversable:
+            continue
+        elif board.board[x_other, king_y] == TileState.black:
+            axis_sum += 1/(x_other - king_x)
+        break
+    # third direction
+    for y_other in reversed(range(1, king_y)):
+        if board.move_board[king_x, y_other] == TileMoveState.traversable:
+            continue
+        elif board.board[king_x, y_other] == TileState.black:
+            axis_sum += 1/(king_y - y_other)
+        break
+    # forth direction
+    for y_other in range(king_y + 1, 12):
+        if board.move_board[king_x, y_other] == TileMoveState.traversable:
+            continue
+        elif board.board[king_x, y_other] == TileState.black:
+            axis_sum += 1/(y_other - king_y)
+        break
+    return -axis_sum / 4 * SAME_AXIS_AS_KING_WEIGHT

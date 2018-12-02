@@ -1,5 +1,6 @@
 import time
 
+from gym_hnefatafl.agents.evaluation import covered_angle_rating
 from gym_hnefatafl.agents.minimax_agent import MinimaxAgent
 from gym_hnefatafl.agents.monte_carlo_agent import MonteCarloAgent
 from gym_hnefatafl.agents.random_agent import RandomAgent
@@ -24,7 +25,7 @@ def __play_game__(black_agent, white_agent):
 
         # render the scene
         env.render()
-        #time.sleep(1)
+        # time.sleep(1)
 
         # give reward
         turn_agent().give_reward(reward)

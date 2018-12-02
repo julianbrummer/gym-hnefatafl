@@ -5,13 +5,15 @@ import random
 
 import numpy as np
 
-from gym_hnefatafl.agents.evaluation import evaluate, quick_evaluate
+from gym_hnefatafl.agents.evaluation import evaluate, quick_evaluate, ANGLE_INTERVALS_3, calculate_angle_intervals
+from gym_hnefatafl.agents.minimax_agent import MinimaxAgent
 from gym_hnefatafl.envs import HnefataflEnv
 from gym_hnefatafl.envs.board import Outcome, Player
 
-QUICK_EVALUATION = True    # whether the nodes calls evaluate or quick_evaluate
+QUICK_EVALUATION = True     # whether the nodes calls evaluate or quick_evaluate
+USE_MINIMAX = True          # whether the algorithm uses the minimax algorithm to finish simulating a game
 
-MONTE_CARLO_ITERATIONS = 10
+MONTE_CARLO_ITERATIONS = 100
 MIN_NUM_VISITS_INTERNAL = 5  # may have to be much higher go uses 9*9
 DEFAULT_SIGMA_SQUARED = 1
 
@@ -28,6 +30,8 @@ class Tree(object):
         self.root = Node(player, None)
         self.board = board
         self.player = player
+        self.white_minimax = MinimaxAgent(Player.white)
+        self.black_minimax = MinimaxAgent(Player.black)
 
     # simulates an entire game
     def simulate_game(self):
@@ -61,12 +65,17 @@ class Tree(object):
             back_up_board_copy.undo_last_action()
             current_node.back_up(game_value, back_up_board_copy)
             current_node = current_node.parent
+        print("game simulated")
 
     # chooses an action and simulates it.
     def __choose_and_simulate_action__(self, board):
-        actions = board.get_valid_actions(self.player)
-        action = random.choice(actions)
-        board.do_action(action, self.player)
+        if USE_MINIMAX:
+            if self.player == Player.white:
+                board.do_action(self.white_minimax.make_move(board), self.player)
+            else:
+                board.do_action(self.black_minimax.make_move(board), self.player)
+        else:
+            board.do_action(random.choice(board.get_valid_actions(self.player)), self.player)
 
     # returns the best action found
     def get_best_action(self):
@@ -209,6 +218,8 @@ def other_player(player):
 class MonteCarloAgent(object):
     def __init__(self, player):
         self.player = player
+        if not ANGLE_INTERVALS_3:
+            calculate_angle_intervals()
 
     # chooses a random move and returns it
     # in order for games to finish in a reasonable amount of time,
