@@ -1,5 +1,6 @@
 import time
 
+from gym_hnefatafl.agents.textbook_monte_carlo_agent import TextbookMonteCarloAgent
 from gym_hnefatafl.agents.evaluation import covered_angle_rating
 from gym_hnefatafl.agents.minimax_agent import MinimaxAgent
 from gym_hnefatafl.agents.monte_carlo_agent import MonteCarloAgent
@@ -39,7 +40,8 @@ def __play_game__(black_agent, white_agent):
 
 
 if __name__ == "__main__":
-    print(__play_game__(MonteCarloAgent(Player.black), MonteCarloAgent(Player.white)))
+    # print(__play_game__(MonteCarloAgent(Player.black), MonteCarloAgent(Player.white)))
+    print(__play_game__(TextbookMonteCarloAgent(Player.black), TextbookMonteCarloAgent(Player.white)))
     # Currently only for testing
     # print(__play_game__(RandomAgent(Player.black), RandomAgent(Player.white)))
 

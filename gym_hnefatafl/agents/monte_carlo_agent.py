@@ -11,8 +11,8 @@ from gym_hnefatafl.envs import HnefataflEnv
 from gym_hnefatafl.envs.board import Outcome, Player
 
 QUICK_EVALUATION = True     # whether the nodes calls evaluate or quick_evaluate
-USE_MINIMAX = True          # whether the algorithm uses the minimax algorithm to finish simulating a game
-PROFILE = False
+USE_MINIMAX = False          # whether the algorithm uses the minimax algorithm to finish simulating a game
+PROFILE = True
 
 MONTE_CARLO_ITERATIONS = 100
 MIN_NUM_VISITS_INTERNAL = 5  # may have to be much higher go uses 9*9
@@ -55,6 +55,8 @@ class Tree(object):
         while simulation_board_copy.outcome == Outcome.ongoing:
             self.__choose_and_simulate_action__(simulation_board_copy)
             self.player = other_player(self.player)
+
+        print(str(simulation_board_copy.outcome))
 
         # calculate game value
         game_value = OUTCOME_BLACK_VALUE if simulation_board_copy.outcome == Outcome.black \

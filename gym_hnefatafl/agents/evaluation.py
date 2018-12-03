@@ -41,14 +41,27 @@ def evaluate(board, player):
             + board_presence_rating(board)\
 
 
+
 # does only the stuff that can be calculated quickly
 def quick_evaluate(board, player):
+    if board.outcome == Outcome.white:
+        return math.inf
+    if board.outcome == Outcome.black:
+        return -math.inf
+    if board.outcome == Outcome.draw:
+        return math.inf if player == Player.black else -math.inf
     return superiority_rating(board) + king_in_trouble_rating(board) + covered_angle_rating(board) \
            + same_axis_as_king_rating(board)
 
 
 # currently tested, add stuff as you like, but don't make it too slow
 def king_centered_evaluation(board, player):
+    if board.outcome == Outcome.white:
+        return math.inf
+    if board.outcome == Outcome.black:
+        return -math.inf
+    if board.outcome == Outcome.draw:
+        return math.inf if player == Player.black else -math.inf
     return random_jiggle() + covered_angle_rating(board) + same_axis_as_king_rating(board) + superiority_rating(board)\
            + king_turns_to_corner(board)
 
