@@ -2,6 +2,8 @@ import cProfile
 import copy
 import math
 import random
+import multiprocessing
+from multiprocessing import Queue, Process
 
 from gym_hnefatafl.agents.evaluation import ANGLE_INTERVALS_3, calculate_angle_intervals
 from gym_hnefatafl.agents.minimax_agent import MinimaxAgent
@@ -9,8 +11,9 @@ from gym_hnefatafl.envs.board import Player, Outcome
 
 USE_MINIMAX = True          # whether the algorithm uses the minimax algorithm to finish simulating a game
 PROFILE = True
-MONTE_CARLO_ITERATIONS = 100
+MONTE_CARLO_ITERATIONS = 10
 EXPLORATION_PARAMETER = math.sqrt(2)
+NUMBER_OF_PROCESSES = 4
 
 
 class Tree(object):
@@ -21,6 +24,10 @@ class Tree(object):
         self.white_minimax = MinimaxAgent(Player.white)
         self.black_minimax = MinimaxAgent(Player.black)
         self.total_simulations = 0
+
+    def simulate_all(self):
+        for i in range(MONTE_CARLO_ITERATIONS):
+            self.simulate_game()
 
     def simulate_game(self):
         simulation_board_copy = copy.deepcopy(self.board)
@@ -48,8 +55,6 @@ class Tree(object):
         while simulation_board_copy.outcome == Outcome.ongoing:
             self.__select_rollout_move__(simulation_board_copy)
             self.player = other_player(self.player)
-
-        print(str(simulation_board_copy.outcome))
 
         # backpropagation
         current_node = self.root
@@ -79,6 +84,9 @@ class Tree(object):
             elif child.simulations == most_simulations:
                 most_simulated_action.append(action)
         return random.choice(most_simulated_action)
+
+    def get_child_frequencies(self):
+        return [(action, child.simulations) for action, child in self.root.children_dict.items()]
 
 
 class Node(object):
@@ -132,17 +140,40 @@ class TextbookMonteCarloAgent(object):
         if PROFILE:
             prof = cProfile.Profile()
             prof.enable()
-        tree = Tree(env.get_board(), self.player)
-        for i in range(MONTE_CARLO_ITERATIONS):
-            tree.simulate_game()
-            if i % 10 == 9:
-                print(str(i + 1) + " games simulated")
-        best_action = tree.get_best_action()
+        queue = Queue()
+        processes = []
+        for i in range(NUMBER_OF_PROCESSES):
+            p = Process(target=self.simulate_parallel, args=(queue, env,))
+            processes.append(p)
+            p.start()
+        for p in processes:
+            p.join()
+        best_action = self.calculate_best_action(queue)
         if PROFILE:
             prof.disable()
             prof.print_stats(sort=2)
 
         return best_action
+
+    def simulate_parallel(self, queue, env):
+        tree = Tree(env.get_board(), self.player)
+        tree.simulate_all()
+        queue.put(tree.get_child_frequencies)
+
+    def calculate_best_action(self, queue):
+        action_frequency_dict = {}
+        for list in queue:
+            for action, frequency in list:
+                action_frequency_dict[action] += frequency
+        most_simulations = 0
+        most_simulated_action = []
+        for action, frequency in action_frequency_dict.items():
+            if frequency > most_simulations:
+                most_simulations = frequency
+                most_simulated_action = [action]
+            elif frequency == most_simulations:
+                most_simulated_action.append(action)
+        return random.choice(most_simulated_action)
 
     # does nothing in this agent, but is here because other agents need it
     def give_reward(self, reward):
