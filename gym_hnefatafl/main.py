@@ -25,7 +25,7 @@ def __play_game__(black_agent, white_agent):
         observation, reward, done, info, captured_pieces = env.step(action)
 
         # render the scene
-        env.render()
+        #env.render()
         # time.sleep(1)
 
         # give reward

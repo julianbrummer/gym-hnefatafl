@@ -2,7 +2,6 @@ import cProfile
 import copy
 import math
 import random
-import multiprocessing
 from multiprocessing import Queue, Process
 
 from gym_hnefatafl.agents.evaluation import ANGLE_INTERVALS_3, calculate_angle_intervals
@@ -140,31 +139,31 @@ class TextbookMonteCarloAgent(object):
         if PROFILE:
             prof = cProfile.Profile()
             prof.enable()
-        queue = Queue()
         processes = []
+        queue = Queue()
+        #pipes = []
         for i in range(NUMBER_OF_PROCESSES):
             p = Process(target=self.simulate_parallel, args=(queue, env,))
+            #pipe = Pipe()
+            #pipes.append(pipe)
+            #p = Process(target=self.simulate_parallel, args=(pipe, env, ))
             processes.append(p)
             p.start()
-        for p in processes:
-            p.join()
-        best_action = self.calculate_best_action(queue)
-        if PROFILE:
-            prof.disable()
-            prof.print_stats(sort=2)
-
-        return best_action
-
-    def simulate_parallel(self, queue, env):
-        tree = Tree(env.get_board(), self.player)
-        tree.simulate_all()
-        queue.put(tree.get_child_frequencies)
-
-    def calculate_best_action(self, queue):
+        iterations = 0
         action_frequency_dict = {}
-        for list in queue:
-            for action, frequency in list:
-                action_frequency_dict[action] += frequency
+        while iterations < NUMBER_OF_PROCESSES:
+            liste = queue.get()
+            iterations += 1
+            for action, frequency in liste:
+                if action in action_frequency_dict:
+                    action_frequency_dict[action] += frequency
+                else:
+                    action_frequency_dict[action] = frequency
+        print(action_frequency_dict)
+        for p in processes:
+            print("joining process " + str(p))
+            p.join()
+            print("joined process " + str(p))
         most_simulations = 0
         most_simulated_action = []
         for action, frequency in action_frequency_dict.items():
@@ -173,7 +172,17 @@ class TextbookMonteCarloAgent(object):
                 most_simulated_action = [action]
             elif frequency == most_simulations:
                 most_simulated_action.append(action)
+
+        if PROFILE:
+            prof.disable()
+            prof.print_stats(sort=2)
+
         return random.choice(most_simulated_action)
+
+    def simulate_parallel(self, queue, env):
+        tree = Tree(env.get_board(), self.player)
+        tree.simulate_all()
+        queue.put(tree.get_child_frequencies())
 
     # does nothing in this agent, but is here because other agents need it
     def give_reward(self, reward):
