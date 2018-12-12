@@ -3,7 +3,6 @@ from enum import IntEnum
 
 from gym_hnefatafl.envs.rule_config import MAX_NUMBER_OF_TURNS, MAX_NUMBER_OF_TURNS_WITHOUT_CAPTURE
 
-
 class Player(IntEnum):
     white = 1
     black = 2
@@ -36,13 +35,14 @@ class Outcome(IntEnum):
 
 class HnefataflBoard:
 
-    def __init__(self):
+    def __init__(self, size):
+        self.size = size
         # empty
-        self.board = np.zeros((13, 13), dtype=np.int32)         # TileStates
-        self.move_board = np.zeros((13, 13), dtype=np.int32)    # TileMoveStates
-        self.player_board = np.zeros((13, 13), dtype=np.int32)  # Players
+        self.board = np.zeros((self.size + 2, self.size + 2), dtype=np.int32)         # TileStates
+        self.move_board = np.zeros((self.size + 2, self.size + 2), dtype=np.int32)    # TileMoveStates
+        self.player_board = np.zeros((self.size + 2, self.size + 2), dtype=np.int32)  # Players
 
-        self.king_position = (6, 6)
+        self.king_position = ((self.size + 1)/2, (self.size + 1)/2)
 
         # holds all board states and the frequency how often they occurred
         self.board_states_dict = {self.board.tobytes(): 1}
@@ -76,41 +76,77 @@ class HnefataflBoard:
 
     def reset_board(self):
         # empty
-        self.board = np.zeros((13, 13), dtype=np.int32)        # TileStates
-        self.move_board = np.zeros((13, 13), dtype=np.int32)   # TileMoveStates
-        self.player_board = np.zeros((13, 13), dtype=np.int32) # Player
+        self.board = np.zeros((self.size + 2, self.size + 2), dtype=np.int32)        # TileStates
+        self.move_board = np.zeros((self.size + 2, self.size + 2), dtype=np.int32)   # TileMoveStates
+        self.player_board = np.zeros((self.size + 2, self.size + 2), dtype=np.int32) # Player
 
-        # black (four battalions)
-        self.board[1, 4:9] = TileState.black
-        self.board[2, 6] = TileState.black
-        self.board[11, 4:9] = TileState.black
-        self.board[10, 6] = TileState.black
-        self.board[4:9, 1] = TileState.black
-        self.board[6, 2] = TileState.black
-        self.board[4:9, 11] = TileState.black
-        self.board[6, 10] = TileState.black
-        # white (fortress)
-        self.board[5:8, 5:8] = TileState.white
-        self.board[4, 6] = TileState.white
-        self.board[6, 8] = TileState.white
-        self.board[6, 4] = TileState.white
-        self.board[8, 6] = TileState.white
+        if self.size == 11:
+            # black
+            self.board[1, 4:9] = TileState.black
+            self.board[2, 6] = TileState.black
+            self.board[11, 4:9] = TileState.black
+            self.board[10, 6] = TileState.black
+            self.board[4:9, 1] = TileState.black
+            self.board[6, 2] = TileState.black
+            self.board[4:9, 11] = TileState.black
+            self.board[6, 10] = TileState.black
+            # white (fortress)
+            self.board[5:8, 5:8] = TileState.white
+            self.board[4, 6] = TileState.white
+            self.board[6, 8] = TileState.white
+            self.board[6, 4] = TileState.white
+            self.board[8, 6] = TileState.white
+
+            self.white_pieces = 13
+            self.black_pieces = 24
+        elif self.size == 7:
+            # black
+            self.board[1:3, 4] = TileState.black
+            self.board[4, 1:3] = TileState.black
+            self.board[4, 6:8] = TileState.black
+            self.board[6:8, 4] = TileState.black
+            # white
+            self.board[3, 4] = TileState.white
+            self.board[4, 3] = TileState.white
+            self.board[4, 5] = TileState.white
+            self.board[5, 4] = TileState.white
+
+            self.white_pieces = 5
+            self.black_pieces = 8
+        elif self.size == 9:
+            # black
+            self.board[1, 4:7] = TileState.black
+            self.board[2, 5] = TileState.black
+            self.board[9, 4:7] = TileState.black
+            self.board[8, 5] = TileState.black
+            self.board[4:7, 1] = TileState.black
+            self.board[5, 2] = TileState.black
+            self.board[4:7, 9] = TileState.black
+            self.board[5, 8] = TileState.black
+            # white
+            self.board[3:5, 5] = TileState.white
+            self.board[5, 3:5] = TileState.white
+            self.board[5, 6:8] = TileState.white
+            self.board[6:8, 5] = TileState.white
+
+            self.white_pieces = 9
+            self.black_pieces = 16
+        else:
+            raise NotImplementedError
+
         # king
-        self.board[6, 6] = TileState.king
-        self.king_position = (6, 6)
+        self.king_position = ((self.size + 1)//2, (self.size + 1)//2)
+        self.board[int(self.size + 1)//2, int(self.size + 1)//2] = TileState.king
         # border
         self.board[0, :] = TileState.border
-        self.board[12, :] = TileState.border
+        self.board[self.size + 1, :] = TileState.border
         self.board[:, 0] = TileState.border
-        self.board[:, 12] = TileState.border
+        self.board[:, self.size + 1] = TileState.border
         # corner
         self.board[1, 1] = TileState.corner
-        self.board[1, 11] = TileState.corner
-        self.board[11, 11] = TileState.corner
-        self.board[11, 1] = TileState.corner
-
-        self.white_pieces = 13
-        self.black_pieces = 24
+        self.board[1, self.size] = TileState.corner
+        self.board[self.size, self.size] = TileState.corner
+        self.board[self.size, 1] = TileState.corner
 
         self.update_board_states()
         self.board_states_dict = {self.board.tobytes(): 1}
@@ -121,14 +157,14 @@ class HnefataflBoard:
     def update_board_states(self):
         # movable state for any player (borders, corners, and soldiers are blocking)
         # anything else is traversable
-        self.move_board = np.zeros((13, 13), dtype=np.int32)
+        self.move_board = np.zeros((self.size + 2, self.size + 2), dtype=np.int32)
         blocking_mask = (self.board == TileState.border) | (self.board == TileState.white) \
                         | (self.board == TileState.black) | (self.board == TileState.king)
 
         np.place(self.move_board, blocking_mask, TileMoveState.blocking)
 
         # player state
-        self.player_board = np.zeros((13, 13), dtype=np.int32)
+        self.player_board = np.zeros((self.size + 2, self.size + 2), dtype=np.int32)
         np.place(self.player_board, self.board == TileState.black, Player.black)
         np.place(self.player_board, (self.board == TileState.white) | (self.board == TileState.king), Player.white)
 
@@ -160,15 +196,15 @@ class HnefataflBoard:
         for x_other in reversed(range(1, x)):
             if self.move_board[x_other, y] == TileMoveState.traversable\
                     and (is_king or self.board[x_other, y] != TileState.corner):
-                if (not (x_other, y) == (6, 6)) or is_king:  # exclude throne if the piece is not the king
+                if (not (x_other, y) == ((self.size + 1)//2, (self.size + 1)//2)) or is_king:  # exclude throne if the piece is not the king
                     valid_actions.append(((x, y), (x_other, y)))
             else:
                 break
         # second direction
-        for x_other in range(x + 1, 12):
+        for x_other in range(x + 1, self.size + 1):
             if self.move_board[x_other, y] == TileMoveState.traversable \
                     and (is_king or self.board[x_other, y] != TileState.corner):
-                if (not (x_other, y) == (6, 6)) or is_king:  # exclude throne if the piece is not the king
+                if (not (x_other, y) == ((self.size + 1)//2, (self.size + 1)//2)) or is_king:  # exclude throne if the piece is not the king
                     valid_actions.append(((x, y), (x_other, y)))
             else:
                 break
@@ -176,15 +212,15 @@ class HnefataflBoard:
         for y_other in reversed(range(1, y)):
             if self.move_board[x, y_other] == TileMoveState.traversable \
                     and (is_king or self.board[x, y_other] != TileState.corner):
-                if (not (x, y_other) == (6, 6)) or is_king:  # exclude throne if the piece is not the king
+                if (not (x, y_other) == ((self.size + 1)//2, (self.size + 1)//2)) or is_king:  # exclude throne if the piece is not the king
                     valid_actions.append(((x, y), (x, y_other)))
             else:
                 break
         # forth direction
-        for y_other in range(y + 1, 12):
+        for y_other in range(y + 1, self.size + 1):
             if self.move_board[x, y_other] == TileMoveState.traversable \
                     and (is_king or self.board[x, y_other] != TileState.corner):
-                if (not (x, y_other) == (6, 6)) or is_king:  # exclude throne if the piece is not the king
+                if (not (x, y_other) == ((self.size + 1)//2, (self.size + 1)//2)) or is_king:  # exclude throne if the piece is not the king
                     valid_actions.append(((x, y), (x, y_other)))
             else:
                 break
@@ -221,7 +257,8 @@ class HnefataflBoard:
 
             # update the board itself and capture pieces if applicable
             self.board[to_x, to_y] = self.board[from_x, from_y]
-            self.board[from_x, from_y] = TileState.empty if (from_x, from_y) != (6, 6) else TileState.throne
+            self.board[from_x, from_y] = TileState.empty if (from_x, from_y) != ((self.size + 1)//2, (self.size + 1)//2) \
+                else TileState.throne
             captured_pieces = self.capture((to_x, to_y), player)
             self.capture_stack.append(captured_pieces)
 
@@ -327,7 +364,7 @@ class HnefataflBoard:
                 self.board_states_dict.pop(self.board.tobytes())
             else:
                 self.board_states_dict[self.board.tobytes()] -= 1
-            self.board = np.frombuffer(self.board_stack.pop(), dtype=np.int32).reshape((13, 13))
+            self.board = np.frombuffer(self.board_stack.pop(), dtype=np.int32).reshape((self.size + 2, self.size + 2))
             self.board.setflags(write=1)
             self.king_position = self.king_position_stack.pop()
             self.turns_without_capture_count = self.turns_without_capture_count_stack.pop()

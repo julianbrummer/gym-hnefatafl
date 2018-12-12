@@ -8,7 +8,7 @@ from gym_hnefatafl.envs.board import TileState
 
 
 class Render_utils:
-    def room_to_rgb(board):
+    def room_to_rgb(board, board_size):
         """
         Creates an RGB image of the room.
         :param room:
@@ -41,10 +41,10 @@ class Render_utils:
 
         surfaces = [empty, white, black, king, throne, corner, border]
         # Assemble the new rgb_room, with all loaded images
-        room_rgb = np.zeros(shape=(13 * 32, 13 * 32, 3), dtype=np.uint8)
-        for i in range(13):
+        room_rgb = np.zeros(shape=((board_size + 2) * 32, (board_size + 2) * 32, 3), dtype=np.uint8)
+        for i in range(board_size + 2):
             x_i = i * 32
-            for j in range(13):
+            for j in range(board_size + 2):
                 y_j = j * 32
                 surfaces_id = int(board[i, j])
                 room_rgb[x_i:(x_i + 32), y_j:(y_j + 32), :] = surfaces[surfaces_id]

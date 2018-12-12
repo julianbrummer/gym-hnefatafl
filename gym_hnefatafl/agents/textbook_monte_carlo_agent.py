@@ -141,29 +141,22 @@ class TextbookMonteCarloAgent(object):
             prof.enable()
         processes = []
         queue = Queue()
-        #pipes = []
         for i in range(NUMBER_OF_PROCESSES):
             p = Process(target=self.simulate_parallel, args=(queue, env,))
-            #pipe = Pipe()
-            #pipes.append(pipe)
-            #p = Process(target=self.simulate_parallel, args=(pipe, env, ))
             processes.append(p)
             p.start()
         iterations = 0
         action_frequency_dict = {}
         while iterations < NUMBER_OF_PROCESSES:
-            liste = queue.get()
+            list = queue.get()
             iterations += 1
-            for action, frequency in liste:
+            for action, frequency in list:
                 if action in action_frequency_dict:
                     action_frequency_dict[action] += frequency
                 else:
                     action_frequency_dict[action] = frequency
-        print(action_frequency_dict)
         for p in processes:
-            print("joining process " + str(p))
             p.join()
-            print("joined process " + str(p))
         most_simulations = 0
         most_simulated_action = []
         for action, frequency in action_frequency_dict.items():

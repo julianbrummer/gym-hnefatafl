@@ -36,9 +36,10 @@ class HnefataflEnv(gym.Env):
     # Set these in ALL subclasses
     observation_space = None
 
-    def __init__(self):
+    def __init__(self, size):
+        self.size = size
         self.viewer = None
-        self._hnefatafl = HnefataflBoard()
+        self._hnefatafl = HnefataflBoard(size)
         self._blackTurn = True
         self.action_space = []
         self.recalculate_action_space()
@@ -112,7 +113,7 @@ class HnefataflEnv(gym.Env):
 
     def get_image(self, mode):
         # print(self._hnefatafl.board)
-        img = Render_utils.room_to_rgb(self._hnefatafl.board)
+        img = Render_utils.room_to_rgb(self._hnefatafl.board, self.size)
         # if mode.startswith('tiny_'):
             # img = Render_utils.room_to_tiny_world_rgb(self.room_state, self.room_fixed, scale=4)
 
