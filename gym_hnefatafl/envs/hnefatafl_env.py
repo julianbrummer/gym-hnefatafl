@@ -93,7 +93,7 @@ class HnefataflEnv(gym.Env):
         raise NotImplementedError
 
     def render(self, mode='human'):
-        #assert mode in RENDERING_MODES
+        # assert mode in RENDERING_MODES
 
         img = self.get_image(mode)
 

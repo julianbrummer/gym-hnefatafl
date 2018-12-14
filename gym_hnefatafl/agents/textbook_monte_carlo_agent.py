@@ -2,14 +2,18 @@ import cProfile
 import copy
 import math
 import random
+import numpy as np
 from multiprocessing import Queue, Process
 
 from gym_hnefatafl.agents.evaluation import ANGLE_INTERVALS_3, calculate_angle_intervals
 from gym_hnefatafl.agents.minimax_agent import MinimaxAgent
 from gym_hnefatafl.envs.board import Player, Outcome
 
-USE_MINIMAX = True          # whether the algorithm uses the minimax algorithm to finish simulating a game
-PROFILE = True
+USE_MINIMAX = False          # whether the algorithm uses the minimax algorithm to finish simulating a game
+PROFILE = False
+PROBABILITY_WORKAROUND = True   # whether the selection process selects moves based on a probability distribution
+#                                   (which ist not correct) or whether it takes the move with the highest value
+#                                   (which is correct according to papers, but probably wrongly implemented here)
 MONTE_CARLO_ITERATIONS = 10
 EXPLORATION_PARAMETER = math.sqrt(2)
 NUMBER_OF_PROCESSES = 4
@@ -103,21 +107,33 @@ class Node(object):
         self.simulations += 1
 
     def select(self, total_simulations):
-        best_actions = []   # this is a list so that we can later draw an action
-        #                     randomly out of all actions with the best value
-        best_value = -math.inf
-        for action in self.children_dict.keys():
-            child = self.children_dict[action]
-            # the following formula is adapted from  here: https://en.wikipedia.org/w/
-            #                       index.php?title=Monte_Carlo_tree_search&oldid=871362180#Exploration_and_exploitation
-            value = (child.results[self.win_outcome()]) / (self.simulations + 1)\
-                    + EXPLORATION_PARAMETER * math.sqrt(2 * math.log(total_simulations) / (self.simulations + 1))
-            if value > best_value:
-                best_value = value
-                best_actions = [action]
-            elif value == best_value:
-                best_actions.append(action)
-        return random.choice(best_actions)
+        if PROBABILITY_WORKAROUND:
+            actions = list(self.children_dict.keys())
+            probs = np.array([(self.children_dict[action].results[self.win_outcome()] + 1) / (self.simulations + 1)\
+                        + EXPLORATION_PARAMETER * math.sqrt(2 * math.log(total_simulations) / (self.simulations + 1))
+                     for action in actions])
+            probs /= np.sum(probs)
+
+            actions_array = np.empty(len(actions), dtype=object)
+            actions_array[:] = actions
+            action = np.random.choice(actions_array, p=probs)
+            return action
+        else:
+            best_actions = []   # this is a list so that we can later draw an action
+            #                     randomly out of all actions with the best value
+            best_value = -math.inf
+            for action in self.children_dict.keys():
+                child = self.children_dict[action]
+                # the following formula is adapted from  here: https://en.wikipedia.org/w/
+                #                   index.php?title=Monte_Carlo_tree_search&oldid=871362180#Exploration_and_exploitation
+                value = (child.results[self.win_outcome()]) / (self.simulations + 1)\
+                        + EXPLORATION_PARAMETER * math.sqrt(2 * math.log(total_simulations) / (self.simulations + 1))
+                if value > best_value:
+                    best_value = value
+                    best_actions = [action]
+                elif value == best_value:
+                    best_actions.append(action)
+            return random.choice(best_actions)
 
     def expand(self, board):
         for action in board.get_valid_actions(self.player):
@@ -142,7 +158,7 @@ class TextbookMonteCarloAgent(object):
         processes = []
         queue = Queue()
         for i in range(NUMBER_OF_PROCESSES):
-            p = Process(target=self.simulate_parallel, args=(queue, env,))
+            p = Process(target=self.simulate_parallel, args=(queue, env.get_board(),))
             processes.append(p)
             p.start()
         iterations = 0
@@ -172,8 +188,8 @@ class TextbookMonteCarloAgent(object):
 
         return random.choice(most_simulated_action)
 
-    def simulate_parallel(self, queue, env):
-        tree = Tree(env.get_board(), self.player)
+    def simulate_parallel(self, queue, board):
+        tree = Tree(board, self.player)
         tree.simulate_all()
         queue.put(tree.get_child_frequencies())
 
