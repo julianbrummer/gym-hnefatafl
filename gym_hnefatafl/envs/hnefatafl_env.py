@@ -69,6 +69,7 @@ class HnefataflEnv(gym.Env):
     def get_board(self):
         board_copy = copy.deepcopy(self._hnefatafl)
         board_copy.print_to_console = False
+        board_copy.save_game=False
         return board_copy
 
         # return self._hnefatafl.copy()
