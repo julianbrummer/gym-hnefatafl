@@ -4,6 +4,7 @@ from gym_hnefatafl.agents.textbook_monte_carlo_agent import TextbookMonteCarloAg
 from gym_hnefatafl.agents.minimax_agent import MinimaxAgent
 from gym_hnefatafl.agents.monte_carlo_agent import MonteCarloAgent
 from gym_hnefatafl.agents.random_agent import RandomAgent
+from gym_hnefatafl.agents.replay_agent import ReplayAgent
 from gym_hnefatafl.envs.hnefatafl_env import HnefataflEnv
 from gym_hnefatafl.envs.board import Player
 
@@ -42,5 +43,8 @@ def __play_game__(black_agent, white_agent):
 if __name__ == "__main__":
     # print(__play_game__(MonteCarloAgent(Player.black), MonteCarloAgent(Player.white)))
     print(__play_game__(TextbookMonteCarloAgent(Player.black), TextbookMonteCarloAgent(Player.white)))
+    #print(__play_game__(MonteCarloAgent(Player.black), MonteCarloAgent(Player.white)))
+    #print(__play_game__(ReplayAgent(Player.black),ReplayAgent(Player.white)))
+    # Currently only for testing
     # print(__play_game__(RandomAgent(Player.black), RandomAgent(Player.white)))
 

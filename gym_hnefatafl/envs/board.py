@@ -64,6 +64,8 @@ class HnefataflBoard:
         # all instances of this class that are a copy of the original class.
         self.print_to_console = True
 
+        self.save_game = True
+
         # for reverting actions
         self.board_stack = []
         self.king_position_stack = []
@@ -229,9 +231,18 @@ class HnefataflBoard:
     # executes "move" for the player "player" whose turn it is
     # except when the game is already over. In this case it does nothing
     def do_action(self, move, player):
+        if self.save_game:
+            print("File opened")
+            url = __file__[:-28]
+            game_filename = url + '/' + 'game.txt'
+            file = open(game_filename,"a+")
+            entry=""
+            entry+= str(move) +" \n"
+
         # return immediately if game over
         if self.outcome != Outcome.ongoing:
             return
+
 
         (from_x, from_y), (to_x, to_y) = move
         if self.can_do_action(move, player):
@@ -246,7 +257,6 @@ class HnefataflBoard:
 
             if self.print_to_console:
                 print(str(player) + " moves a piece from " + str((from_x, from_y)) + " to " + str((to_x, to_y)))
-
             # if king is moving: update king position and check if he reached a corner
             if self.board[from_x, from_y] == TileState.king:
                 self.king_position = (to_x, to_y)
@@ -254,7 +264,6 @@ class HnefataflBoard:
                     self.outcome = Outcome.white
                     if self.print_to_console:
                         print("The king escapes to corner " + str((to_x, to_y)) + ". White wins!")
-
             # update the board itself and capture pieces if applicable
             self.board[to_x, to_y] = self.board[from_x, from_y]
             self.board[from_x, from_y] = TileState.empty if (from_x, from_y) != ((self.size + 1)//2, (self.size + 1)//2) \
@@ -282,6 +291,10 @@ class HnefataflBoard:
                 self.outcome = Outcome.draw
 
             self.update_board_states()
+            if self.save_game:
+                if Outcome != Outcome.ongoing:
+                    file.write(entry)
+                    file.close();
             return captured_pieces
         else:
             raise Exception(str(player) + " tried to make move " + str(move) + ", but that move is not possible.")
@@ -305,6 +318,7 @@ class HnefataflBoard:
             captured_pieces.append((x + 1, y))
             if self.print_to_console:
                 print(str(turn_player) + " captures piece at " + str((x + 1, y)))
+
         # check capture left
         if self.board[x - 1, y] == opponent_pawn_tile_state \
                 and (self.board[x - 2, y] == own_pawn_tile_state or self.board[x - 2, y] == TileState.corner
@@ -314,6 +328,7 @@ class HnefataflBoard:
             captured_pieces.append((x - 1, y))
             if self.print_to_console:
                 print(str(turn_player) + " captures piece at " + str((x - 1, y)))
+
         # check capture bottom
         if self.board[x, y + 1] == opponent_pawn_tile_state \
                 and (self.board[x, y + 2] == own_pawn_tile_state or self.board[x, y + 2] == TileState.corner
@@ -323,6 +338,7 @@ class HnefataflBoard:
             captured_pieces.append((x, y + 1))
             if self.print_to_console:
                 print(str(turn_player) + " captures piece at " + str((x, y + 1)))
+
         # check capture top
         if self.board[x, y - 1] == opponent_pawn_tile_state \
                 and (self.board[x, y - 2] == own_pawn_tile_state or self.board[x, y - 2] == TileState.corner
@@ -346,6 +362,8 @@ class HnefataflBoard:
             captured_pieces.append((king_x, king_y))
             if self.print_to_console:
                 print("Black wins by capturing the king at " + str(self.king_position) + "!")
+            if self.save_game:
+                entry += "4, " + str(self.king_position) + "\n"
 
         if len(captured_pieces) > 0:
             self.turns_without_capture_count = 0
