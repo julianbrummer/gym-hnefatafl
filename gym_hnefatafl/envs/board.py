@@ -64,7 +64,8 @@ class HnefataflBoard:
         # all instances of this class that are a copy of the original class.
         self.print_to_console = True
 
-        self.save_game = True
+        self.save_game = False
+        self.replay=True
 
         # for reverting actions
         self.board_stack = []
@@ -362,8 +363,6 @@ class HnefataflBoard:
             captured_pieces.append((king_x, king_y))
             if self.print_to_console:
                 print("Black wins by capturing the king at " + str(self.king_position) + "!")
-            if self.save_game:
-                entry += "4, " + str(self.king_position) + "\n"
 
         if len(captured_pieces) > 0:
             self.turns_without_capture_count = 0

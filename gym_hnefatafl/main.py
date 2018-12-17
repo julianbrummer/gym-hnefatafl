@@ -27,7 +27,7 @@ def __play_game__(black_agent, white_agent):
 
         # render the scene
         env.render()
-        # time.sleep(1)
+        time.sleep(1)
 
         # give reward
         turn_agent().give_reward(reward)
@@ -42,9 +42,9 @@ def __play_game__(black_agent, white_agent):
 
 if __name__ == "__main__":
     # print(__play_game__(MonteCarloAgent(Player.black), MonteCarloAgent(Player.white)))
-    print(__play_game__(TextbookMonteCarloAgent(Player.black), TextbookMonteCarloAgent(Player.white)))
+    #print(__play_game__(TextbookMonteCarloAgent(Player.black), TextbookMonteCarloAgent(Player.white)))
     #print(__play_game__(MonteCarloAgent(Player.black), MonteCarloAgent(Player.white)))
-    #print(__play_game__(ReplayAgent(Player.black),ReplayAgent(Player.white)))
+    print(__play_game__(ReplayAgent(Player.black),ReplayAgent(Player.white)))
     # Currently only for testing
     # print(__play_game__(RandomAgent(Player.black), RandomAgent(Player.white)))
 
